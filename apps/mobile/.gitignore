@@ -1,0 +1,29 @@
+# --- Logs / caches ------------------------------------------------------------
+node_modules/
+.expo/
+.expo-shared/
+dist/
+web-build/
+*.tsbuildinfo
+.metro-health-check*
+
+# --- Native build outputs (created by `expo prebuild`) ----------------------
+android/
+ios/
+
+# --- Local env (never commit secrets) ----------------------------------------
+.env
+.env.local
+.env.*.local
+
+# --- IDE ----------------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# --- Test artefacts -----------------------------------------------------------
+coverage/
+e2e/artifacts/
+e2e/.cache/
+detox-last-run/

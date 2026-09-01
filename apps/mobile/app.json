@@ -1,0 +1,73 @@
+{
+  "expo": {
+    "name": "Eger Probléma App",
+    "slug": "eger-problema-app",
+    "scheme": "egerproblem",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0f172a"
+    },
+    "ios": {
+      "bundleIdentifier": "ai.bliktri.egerproblem",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Az új bejelentések helyének rögzítéséhez kérjük a helyadatokhoz való hozzáférést.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "A háttérben is jelezni tudjuk, ha a jóváhagyott probléma megoldódott.",
+        "NSCameraUsageDescription": "A bejelentéshez fotót mellékelhetsz a kamerával.",
+        "NSPhotoLibraryUsageDescription": "A bejelentéshez fotót választhatsz a galériából.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "ai.bliktri.egerproblem",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "NOTIFICATIONS"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#0f172a"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Az alkalmazás a háttérben is jelezni tudja, ha egy általad követett probléma megoldódott."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "A bejelentéshez fotót mellékelhetsz a galériából."
+        }
+      ],
+      "expo-notifications"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "00000000-0000-0000-0000-000000000000"
+      }
+    }
+  }
+}
