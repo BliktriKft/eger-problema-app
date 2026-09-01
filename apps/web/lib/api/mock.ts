@@ -19,11 +19,89 @@ import { ApiError } from './client';
 const state = {
   problems: new Map<string, Problem>(Object.entries(MOCK_PROBLEM_DETAILS)),
   markers: [...MOCK_PROBLEMS] as ProblemMarker[],
-  institutions: [] as Institution[],
+  institutions: new Map<string, Institution>(),
 };
 
 let mockVoteCounter = 0;
 let mockProblemCounter = 100;
+let mockInstitutionCounter = 0;
+
+const EGER_SEED: Institution[] = [
+  {
+    id: 'mock-inst-egri-bolyais-gimnazium',
+    name: 'Egri Bolyai János Gimnázium',
+    type: 'school',
+    address: '3300 Eger, Vörösmarty u. 21.',
+    latitude: 47.9034,
+    longitude: 20.3766,
+    officialUrl: 'https://bolyai-eger.hu',
+  },
+  {
+    id: 'mock-inst-markhot-ferenc-korhaz',
+    name: 'Markhot Ferenc Oktatókórház és Rendelőintézet',
+    type: 'hospital',
+    address: '3300 Eger, Knézich Károly u. 1.',
+    latitude: 47.8991,
+    longitude: 20.3799,
+    officialUrl: 'https://markhot.hu',
+  },
+  {
+    id: 'mock-inst-egri-uszoda',
+    name: 'Egri Városi Uszoda és Strand',
+    type: 'pool',
+    address: '3300 Eger, Frank Tivadar u. 2.',
+    latitude: 47.8956,
+    longitude: 20.3755,
+    officialUrl: null,
+  },
+  {
+    id: 'mock-inst-brunswick-konyvtar',
+    name: 'Bródy Sándor Megyei és Városi Könyvtár',
+    type: 'library',
+    address: '3300 Eger, Kossuth Lajos u. 18.',
+    latitude: 47.9028,
+    longitude: 20.3779,
+    officialUrl: 'https://brdk.hu',
+  },
+  {
+    id: 'mock-inst-egri-polgarmesteri-hivatal',
+    name: 'Egri Polgármesteri Hivatal',
+    type: 'government',
+    address: '3300 Eger, Dobó István tér 2.',
+    latitude: 47.9027,
+    longitude: 20.3782,
+    officialUrl: 'https://eger.hu',
+  },
+  {
+    id: 'mock-inst-gardonyi-geza-gimnazium',
+    name: 'Gárdonyi Géza Ciszterci Gimnázium',
+    type: 'school',
+    address: '3300 Eger, Rákóczi út 1.',
+    latitude: 47.9001,
+    longitude: 20.3791,
+    officialUrl: 'https://ggcg.hu',
+  },
+  {
+    id: 'mock-inst-egri-strand',
+    name: 'Bitskey Aladár Uszoda',
+    type: 'pool',
+    address: '3300 Eger, Fürdő u. 1.',
+    latitude: 47.8962,
+    longitude: 20.3766,
+    officialUrl: null,
+  },
+  {
+    id: 'mock-inst-heves-megyei-kormanyhivatal',
+    name: 'Heves Végrehajtó Kormányhivatal',
+    type: 'government',
+    address: '3300 Eger, Kossuth Lajos u. 9.',
+    latitude: 47.9023,
+    longitude: 20.3791,
+    officialUrl: null,
+  },
+];
+
+for (const inst of EGER_SEED) state.institutions.set(inst.id, inst);
 
 export interface MockOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -133,29 +211,89 @@ export async function mockFetch<T>(path: string, opts: MockOptions = {}): Promis
 
   // /api/institutions
   if (path === '/api/institutions' && method === 'GET') {
-    return state.institutions as unknown as T;
+    const list = Array.from(state.institutions.values());
+    return filteredInstitutions(list, query) as unknown as T;
+  }
+  if (path === '/api/institutions' && method === 'POST') {
+    const input = body as {
+      name: string;
+      type: Institution['type'];
+      address: string;
+      latitude: number;
+      longitude: number;
+      officialUrl: string | null;
+    };
+    if (!input?.name || !input.type || !input.address) {
+      throw new ApiError(400, { message: 'Missing required fields' }, 'mock 400');
+    }
+    mockInstitutionCounter += 1;
+    const id = `mock-inst-new-${mockInstitutionCounter}`;
+    const created: Institution = {
+      id,
+      name: input.name,
+      type: input.type,
+      address: input.address,
+      latitude: Number(input.latitude),
+      longitude: Number(input.longitude),
+      officialUrl: input.officialUrl ?? null,
+    };
+    state.institutions.set(id, created);
+    return created as unknown as T;
   }
 
   const institutionMatch = /^\/api\/institutions\/([^/]+)$/.exec(path);
   if (institutionMatch) {
     const id = decodeURIComponent(institutionMatch[1]);
-    const found = state.institutions.find((i) => i.id === id);
-    if (!found) throw new ApiError(404, { message: 'Not found' }, `mock 404 for ${id}`);
-    return found as unknown as T;
+    const existing = state.institutions.get(id);
+    if (!existing) throw new ApiError(404, { message: 'Not found' }, `mock 404 for ${id}`);
+    if (method === 'GET') return existing as unknown as T;
+    if (method === 'PATCH') {
+      const updated: Institution = {
+        ...existing,
+        ...(body as Partial<Institution>),
+        latitude: Number((body as { latitude?: number })?.latitude ?? existing.latitude),
+        longitude: Number((body as { longitude?: number })?.longitude ?? existing.longitude),
+      };
+      state.institutions.set(id, updated);
+      return updated as unknown as T;
+    }
+    if (method === 'DELETE') {
+      state.institutions.delete(id);
+      return undefined as unknown as T;
+    }
   }
 
   throw new ApiError(404, { message: `Mock has no route for ${method} ${path}` }, `mock 404 for ${method} ${path}`);
 }
 
-function filteredAndPaged<T extends { status?: string; category?: string }>(
+function filteredInstitutions(
+  list: Institution[],
+  query?: Record<string, string | number | boolean | undefined>,
+): Institution[] {
+  let out = list;
+  const search = (query?.search ?? query?.q) as string | undefined;
+  const type = query?.type as string | undefined;
+  if (type) out = out.filter((i) => i.type === type);
+  if (search) {
+    const needle = search.toLowerCase();
+    out = out.filter((i) => i.name.toLowerCase().includes(needle) || i.address.toLowerCase().includes(needle));
+  }
+  const limit = Number(query?.limit ?? 0);
+  if (limit > 0) out = out.slice(0, limit);
+  return out;
+}
+
+function filteredAndPaged<T extends { status?: string; category?: string; institutionId?: string | null }>(
   list: T[],
   query?: Record<string, string | number | boolean | undefined>,
 ): T[] {
   let out = list;
   const category = query?.category as string | undefined;
   const status = query?.status as string | undefined;
+  const institutionId = query?.institutionId as string | undefined;
   if (category) out = out.filter((p) => p.category === category);
   if (status) out = out.filter((p) => p.status === status);
+  if (institutionId) out = out.filter((p) => p.institutionId === institutionId);
   // page/pageSize are accepted but ignored in mock — small dataset.
   return out;
 }

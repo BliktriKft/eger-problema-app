@@ -101,13 +101,14 @@ function safeJsonParse(text: string): unknown {
 
 // ----- Domain helpers -----------------------------------------------------
 
-/** GET /api/problems?category=&status=&page=&pageSize= */
+/** GET /api/problems?category=&status=&page=&pageSize=&institutionId= */
 export async function listProblems(
   filters: {
     category?: string;
     status?: string;
     page?: number;
     pageSize?: number;
+    institutionId?: string;
   } = {},
   accessToken?: string | null,
 ): Promise<Problem[]> {
@@ -153,10 +154,62 @@ export async function castVote(problemId: string, value: 1 | -1, accessToken: st
 
 /** GET /api/institutions */
 export async function listInstitutions(
-  query: { q?: string; type?: string } = {},
+  query: { q?: string; type?: string; search?: string; limit?: number } = {},
   accessToken?: string | null,
 ): Promise<Institution[]> {
-  return api<Institution[]>('/api/institutions', { query: query as Record<string, string>, accessToken });
+  // Backend's QueryInstitutionsDto accepts `search` (not `q`) — map it.
+  const { q, ...rest } = query;
+  const merged: Record<string, string | number | undefined> = { ...rest };
+  if (q !== undefined && rest.search === undefined) merged.search = q;
+  return api<Institution[]>('/api/institutions', { query: merged, accessToken });
+}
+
+/** GET /api/institutions/:id */
+export async function getInstitution(id: string, accessToken?: string | null): Promise<Institution> {
+  return api<Institution>(`/api/institutions/${encodeURIComponent(id)}`, { accessToken });
+}
+
+/**
+ * POST /api/institutions — admin-only.
+ * The NestJS backend's admin endpoints are not yet implemented
+ * (apps/api/src/modules/institutions/institutions.controller.ts ships
+ * only GET). The frontend wires the call so the admin UI works in
+ * mock mode and lights up as soon as the backend lands the controller.
+ */
+export interface CreateInstitutionInput {
+  name: string;
+  type: Institution['type'];
+  address: string;
+  latitude: number;
+  longitude: number;
+  officialUrl: string | null;
+}
+export async function createInstitution(
+  body: CreateInstitutionInput,
+  accessToken: string,
+): Promise<Institution> {
+  return api<Institution>('/api/institutions', { method: 'POST', body, accessToken });
+}
+
+/** PATCH /api/institutions/:id — admin-only. */
+export async function updateInstitution(
+  id: string,
+  body: Partial<CreateInstitutionInput>,
+  accessToken: string,
+): Promise<Institution> {
+  return api<Institution>(`/api/institutions/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body,
+    accessToken,
+  });
+}
+
+/** DELETE /api/institutions/:id — admin-only. */
+export async function deleteInstitution(id: string, accessToken: string): Promise<void> {
+  await api<void>(`/api/institutions/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    accessToken,
+  });
 }
 
 /** GET /api/problems/:id/wiki */
