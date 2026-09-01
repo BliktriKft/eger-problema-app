@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "echo \"no tests yet\" && exit 0",
     "test:e2e": "playwright test",
+    "generate:api-types": "openapi-typescript ../../packages/shared/openapi.json -o lib/api/types.generated.ts",
     "clean": "rm -rf .next out node_modules .turbo"
   },
   "dependencies": {
