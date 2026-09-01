@@ -2,14 +2,15 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useNearbyProblems } from '@/lib/api/queries/problems';
 import { MapShell } from '@/components/map/MapShell';
 import { useAuth } from '@/lib/auth-context';
-import { listNearbyProblems } from '@/lib/api';
 import { MOCK_PROBLEMS } from '@/lib/mock-problems';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { ErrorState } from '@/components/ui/error-state';
 import { cn } from '@/lib/cn';
+import { USE_API } from '@/lib/env';
 
 /**
  * MapScreen — the primary surface of the MVP.  Renders a full-bleed
@@ -19,23 +20,26 @@ import { cn } from '@/lib/cn';
  *  - On the left: a filter sheet (category chips, institution picker)
  *  - On the right: an FAB to /submit (rendered globally in layout)
  *
- * When Supabase is configured the map pulls from /api/problems/nearby
- * centered on Eger.  Otherwise it falls back to the mock dataset.
+ * Data source policy (F3):
+ *   - If the real NestJS API is configured (USE_API=true), we hit it via
+ *     useNearbyProblems centered on Eger.  Errors fall through to an
+ *     inline ErrorState card.
+ *   - Otherwise the screen falls back to MOCK_PROBLEMS so the F2 demo
+ *     still works without any env config.
  */
 export function MapScreen() {
-  const { isConfigured, session } = useAuth();
+  const { session } = useAuth();
 
-  const EGER = { latitude: 47.9025, longitude: 20.3772 };
+  const EGER = { latitude: 47.9025, longitude: 20.3772, radiusMeters: 4000 };
 
-  const problemsQuery = useQuery({
-    queryKey: ['problems', 'nearby', EGER],
-    queryFn: () => listNearbyProblems({ ...EGER, radiusMeters: 4000 }, session?.access_token ?? null),
-    enabled: isConfigured,
-    staleTime: 30_000,
+  const problemsQuery = useNearbyProblems(USE_API ? EGER : null, {
+    refetchOnWindowFocus: false,
   });
 
-  const markers = isConfigured && problemsQuery.data ? problemsQuery.data : MOCK_PROBLEMS;
-  const isLoading = isConfigured && problemsQuery.isLoading;
+  // Mock mode (or query not yet fired) → bake-in markers.
+  const markers = USE_API && problemsQuery.data ? problemsQuery.data : MOCK_PROBLEMS;
+  const isLoading = USE_API && problemsQuery.isLoading;
+  const isError = USE_API && problemsQuery.isError;
 
   return (
     <div className="relative h-[calc(100vh-3.5rem)] w-full" data-testid="map-screen">
@@ -57,10 +61,33 @@ export function MapScreen() {
         </div>
       </aside>
 
-      {isLoading ? null : markers.length === 0 ? (
+      {isError ? (
+        <div className="pointer-events-none absolute inset-x-0 top-20 z-[401] mx-auto flex max-w-md justify-center px-4">
+          <ErrorState
+            severity="warning"
+            variant="inline"
+            title="Nem sikerült betölteni a bejelentéseket."
+            description="A demo adatok jelennek meg helyette."
+            className="pointer-events-auto bg-background"
+          />
+        </div>
+      ) : null}
+
+      {!isLoading && !isError && markers.length === 0 ? (
         <div className="pointer-events-none absolute inset-0 z-[401] flex items-center justify-center">
           <EmptyState variant="no-pins" action={{ label: 'Bejelentés indítása', href: '/submit' }} className="pointer-events-auto bg-background" />
         </div>
+      ) : null}
+
+      {/* Diagnostic pill in dev so QA can see which mode is active. */}
+      {process.env.NODE_ENV !== 'production' ? (
+        <span
+          className="pointer-events-none absolute bottom-3 left-3 z-[402] rounded-full border border-border bg-background/80 px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground backdrop-blur"
+          data-testid="map-mode-pill"
+          data-mode={USE_API ? 'api' : 'mock'}
+        >
+          {USE_API ? `API · ${session?.user?.email ?? 'guest'}` : 'Mock dataset'}
+        </span>
       ) : null}
     </div>
   );

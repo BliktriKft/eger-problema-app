@@ -2,11 +2,12 @@
 
 import * as React from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { cn } from '@/lib/cn';
-import { castVote, getProblem, ApiError } from '@/lib/api';
+import { useProblem, useVote } from '@/lib/api/queries/problems';
+import { ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth-context';
+import { USE_API } from '@/lib/env';
 import { toast } from '@/components/ui/toaster';
+import { cn } from '@/lib/cn';
 import type { VoteState } from '@/lib/vote-state';
 import { computeVoteState } from '@/lib/vote-state';
 
@@ -14,10 +15,12 @@ import { computeVoteState } from '@/lib/vote-state';
  * VoteButtons — see `design/components/vote-buttons.md`.
  *
  * MVP wiring:
- *  - One optimistic update (state + score) per click.
+ *  - One optimistic update (state + score) per click via the useVote hook.
  *  - 401 nudges the user to login (no visual rollback; we keep the
  *    optimistic state so it fires the moment auth returns).
  *  - Other errors roll back and surface a toast.
+ *  - The server-side problem is re-fetched via useProblem in API mode so
+ *    the score converges with the server's authoritative state.
  */
 
 export interface VoteButtonsProps {
@@ -41,19 +44,13 @@ export function VoteButtons({
   className,
 }: VoteButtonsProps) {
   const { isAuthenticated, isConfigured, session } = useAuth();
-  const qc = useQueryClient();
 
   const [state, setState] = React.useState<VoteState>(initialState);
   const [score, setScore] = React.useState<number>(initialScore);
   const [bumpKey, setBumpKey] = React.useState(0);
 
-  // Re-sync from a fresh server response when the cache invalidates.
-  const problemQuery = useQuery({
-    queryKey: ['problem', problemId],
-    queryFn: () => getProblem(problemId, session?.access_token ?? null),
-    enabled: false,
-  });
-
+  // Re-sync from a fresh server response (API mode only).
+  const problemQuery = useProblem(USE_API ? problemId : null);
   React.useEffect(() => {
     if (problemQuery.data) {
       setScore(problemQuery.data.score);
@@ -61,47 +58,7 @@ export function VoteButtons({
     }
   }, [problemQuery.data]);
 
-  const mutation = useMutation({
-    mutationFn: async (value: 1 | -1) => {
-      if (!session?.access_token) throw new ApiError(401, null, 'Bejelentkezés szükséges');
-      return castVote(problemId, value, session.access_token);
-    },
-    onMutate: async (value) => {
-      // Optimistic
-      const next: VoteState = state === (value === 1 ? 'upvoted' : 'downvoted') ? 'neutral' : value === 1 ? 'upvoted' : 'downvoted';
-      const delta = next === 'neutral' ? (state === 'upvoted' ? -1 : state === 'downvoted' ? 1 : 0) : (next === 'upvoted' ? 1 : -1) - (state === 'upvoted' ? 1 : state === 'downvoted' ? -1 : 0);
-      const prevState = state;
-      const prevScore = score;
-      setState(next);
-      setScore((s) => s + delta);
-      setBumpKey((k) => k + 1);
-      return { prevState, prevScore };
-    },
-    onError: (err, _value, ctx) => {
-      if (err instanceof ApiError && err.status === 401) {
-        toast({
-          title: 'A szavazáshoz jelentkezz be.',
-          description: 'A Google/Apple gombbal 1 kattintás.',
-          variant: 'warning',
-        });
-        return;
-      }
-      toast({
-        title: 'Nem sikerült rögzíteni a szavazatod.',
-        description: err instanceof ApiError ? `${err.status} ${err.message}` : undefined,
-        variant: 'destructive',
-      });
-      // rollback
-      if (ctx) {
-        setState(ctx.prevState);
-        setScore(ctx.prevScore);
-      }
-    },
-    onSuccess: (data) => {
-      setScore(data.score);
-      qc.invalidateQueries({ queryKey: ['problem', problemId] });
-    },
-  });
+  const vote = useVote(problemId);
 
   function click(value: 1 | -1) {
     if (disabled) return;
@@ -113,7 +70,53 @@ export function VoteButtons({
       toast.warning('A szavazáshoz jelentkezz be.');
       return;
     }
-    mutation.mutate(value);
+    // Optimistic UI bump happens here — we touch state/score before the
+    // network call so the click feels instant; useVote's onMutate
+    // mirrors the score into the cached Problem so any sibling views
+    // see the new value too.
+    const next: VoteState =
+      state === (value === 1 ? 'upvoted' : 'downvoted')
+        ? 'neutral'
+        : value === 1
+        ? 'upvoted'
+        : 'downvoted';
+    const prevScore = score;
+    const delta =
+      next === 'neutral'
+        ? state === 'upvoted'
+          ? -1
+          : state === 'downvoted'
+          ? 1
+          : 0
+        : next === 'upvoted'
+        ? 1 - (state === 'upvoted' ? 1 : state === 'downvoted' ? -1 : 0)
+        : -1 - (state === 'upvoted' ? 1 : state === 'downvoted' ? -1 : 0);
+    setState(next);
+    setScore((s) => s + delta);
+    setBumpKey((k) => k + 1);
+
+    vote.mutate(value, {
+      onSuccess: (data: { score: number }) => {
+        setScore(data.score);
+      },
+      onError: (err: unknown) => {
+        if (err instanceof ApiError && err.status === 401) {
+          toast({
+            title: 'A szavazáshoz jelentkezz be.',
+            description: 'A Google/Apple gombbal 1 kattintás.',
+            variant: 'warning',
+          });
+          return;
+        }
+        toast({
+          title: 'Nem sikerült rögzíteni a szavazatod.',
+          description: err instanceof ApiError ? `${err.status} ${err.message}` : undefined,
+          variant: 'destructive',
+        });
+        // rollback to the value we had before the click
+        setScore(prevScore);
+      },
+    });
   }
 
   const isCompact = variant === 'compact';
