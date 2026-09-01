@@ -30,7 +30,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.build.cjs.json",
+    "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.build.cjs.json && node scripts/postbuild-cjs.cjs",
     "dev": "tsc -p tsconfig.build.json --watch",
     "lint": "tsc --noEmit",
     "test": "echo \"no tests yet\" && exit 0",

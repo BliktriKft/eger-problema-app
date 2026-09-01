@@ -42,6 +42,16 @@ async function bootstrap(): Promise<void> {
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document);
 
+  // One-shot OpenAPI export (used by `pnpm docs:export:ci`).
+  if (process.env.EXPORT_OPENAPI === '1') {
+    const outPath = join(process.cwd(), 'openapi.json');
+    writeFileSync(outPath, JSON.stringify(document, null, 2));
+    // eslint-disable-next-line no-console
+    console.log(`OpenAPI spec written to ${outPath}`);
+    await app.close();
+    process.exit(0);
+  }
+
   const port = Number(process.env.PORT ?? 8000);
   await app.listen(port);
   app

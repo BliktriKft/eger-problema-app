@@ -1,5 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../database/database.module";
 
 /**
  * Wiki service placeholder (read-only stub).
@@ -11,7 +12,7 @@ import { PrismaClient } from "@prisma/client";
  */
 @Injectable()
 export class WikiService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   find(): Promise<unknown> {
     return Promise.resolve(null);
