@@ -11,7 +11,7 @@
     "esModuleInterop": true,
     "noEmit": true,
     "isolatedModules": true,
-    "types": []
+    "types": ["node"]
   },
   "include": ["scripts/**/*.ts", "tokens/**/*.json"],
   "exclude": ["node_modules"]
