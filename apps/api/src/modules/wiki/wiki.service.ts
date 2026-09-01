@@ -32,7 +32,7 @@ const DEFAULT_MAX_SOURCES = Number(process.env.WIKI_MAX_SOURCES ?? 10);
  * Coordinates the wiki generation pipeline:
  *
  *   Problem  ─►  scrape (local sources)
- *            ─►  LLM (Claude, mock if no key)
+ *            ─►  LLM (mock, MiniMax, or OpenRouter; mock if unavailable)
  *            ─►  UPSERT wiki_entries row
  *
  * Concurrency: the public `findByProblem()` is read-only and cheap.

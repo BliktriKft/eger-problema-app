@@ -40,7 +40,7 @@ Források (csak ezekből dolgozz, mindent hivatkozz):
 
 {sources}
 
-Készíts magyar nyelvű, tömör összefoglalót a problémáról a fenti szabályok szerint. A válasz JSON formátumban legyen: {"title": "...", "body": "..."}`;
+Készíts magyar nyelvű, tömör összefoglalót a problémáról a fenti szabályok szerint. A válasz TITLE: / BODY: formátumban legyen.`;
 
 /**
  * Substitute `{placeholder}` slots in `USER_PROMPT_TEMPLATE`.

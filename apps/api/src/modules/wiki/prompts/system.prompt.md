@@ -13,13 +13,9 @@ Te az Eger Város Probléma Térkép alkalmazás wiki-szerkesztője vagy. A cél
 
 ## Formátum
 
-A válaszod egy JSON object legyen, pontosan két mezővel:
+A válaszod TITLE: / BODY: formátumban legyen:
 
-```
-{
-  "title": "...",
-  "body": "..."
-}
-```
+TITLE: ...
+BODY: ...
 
 Ne írj a JSON köré semmilyen más szöveget, magyarázatot, vagy markdown kódkeretet.
