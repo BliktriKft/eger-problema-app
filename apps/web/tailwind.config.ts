@@ -3,8 +3,60 @@
 // `pnpm --filter @eger/design export:tokens` which only rewrites
 // the fenced AUTO-GEN block. Add new tokens to design/tokens/*.json and
 // re-run the script.
+//
+// The shadcn/ui recipes (Card, Dialog, …) reference utility names like
+// `bg-primary`, `text-foreground`, `border-border`, `ring-ring`. The
+// shadcnColors object below maps each of those utility names onto
+// `hsl(var(--…))` so the design-system CSS variables in app/globals.css
+// drive the rendered color. We spread these in via `theme.extend.colors`
+// alongside the AUTO-GEN hex scales.
 
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
+
+const shadcnColors = {
+  background: "hsl(var(--background))",
+  foreground: "hsl(var(--foreground))",
+  border: "hsl(var(--border))",
+  input: "hsl(var(--input))",
+  ring: "hsl(var(--ring))",
+  card: {
+    DEFAULT: "hsl(var(--card))",
+    foreground: "hsl(var(--card-foreground))",
+  },
+  popover: {
+    DEFAULT: "hsl(var(--popover))",
+    foreground: "hsl(var(--popover-foreground))",
+  },
+  primary: {
+    DEFAULT: "hsl(var(--primary))",
+    foreground: "hsl(var(--primary-foreground))",
+  },
+  secondary: {
+    DEFAULT: "hsl(var(--secondary))",
+    foreground: "hsl(var(--secondary-foreground))",
+  },
+  muted: {
+    DEFAULT: "hsl(var(--muted))",
+    foreground: "hsl(var(--muted-foreground))",
+  },
+  accent: {
+    DEFAULT: "hsl(var(--accent))",
+    foreground: "hsl(var(--accent-foreground))",
+  },
+  destructive: {
+    DEFAULT: "hsl(var(--destructive))",
+    foreground: "hsl(var(--destructive-foreground))",
+  },
+  success: {
+    DEFAULT: "hsl(var(--success))",
+    foreground: "hsl(var(--success-foreground))",
+  },
+  warning: {
+    DEFAULT: "hsl(var(--warning))",
+    foreground: "hsl(var(--warning-foreground))",
+  },
+} as const;
 
 const config: Config = {
   darkMode: ["class"],
@@ -22,6 +74,10 @@ const config: Config = {
     extend: {
 /* === AUTO-GEN:DESIGN_TOKENS — do not edit inside the fences === */
       colors: {
+        // shadcn/ui utility aliases — these are merged first so the hex
+        // block below overrides them only when an explicit `primary-50`
+        // numeric scale is needed (the design's chart palette).
+        ...(shadcnColors as Record<string, unknown>),
         "accent": {
           "100": "#FDE68A",
           "200": "#FCD34D",
@@ -36,14 +92,6 @@ const config: Config = {
           "DEFAULT": "#F59E0B",
           "fg": "#1F2937",
         },
-        "background": {
-          "DEFAULT": "#FFFFFF",
-          "fg": "#111827",
-        },
-        "border": {
-          "DEFAULT": "#E5E7EB",
-          "fg": "#111827",
-        },
         "destructive": {
           "100": "#FECACA",
           "200": "#FCA5A5",
@@ -57,10 +105,6 @@ const config: Config = {
           "900": "#450A0A",
           "DEFAULT": "#DC2626",
           "fg": "#FFFFFF",
-        },
-        "input": {
-          "DEFAULT": "#E5E7EB",
-          "fg": "#111827",
         },
         "muted": {
           "100": "#F3F4F6",
@@ -88,10 +132,6 @@ const config: Config = {
           "800": "#630616",
           "900": "#41030E",
           "DEFAULT": "#C8102E",
-          "fg": "#FFFFFF",
-        },
-        "ring": {
-          "DEFAULT": "#1E3A8A",
           "fg": "#FFFFFF",
         },
         "secondary": {
@@ -246,8 +286,7 @@ const config: Config = {
 /* === END AUTO-GEN:DESIGN_TOKENS === */
     },
   },
-  plugins: [],
+  plugins: [tailwindcssAnimate],
 };
 
 export default config;
-
