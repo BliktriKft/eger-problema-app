@@ -38,12 +38,6 @@ export const problemKeys = {
   detail: (id: string) => ['problems', 'detail', id] as const,
 };
 
-export const institutionKeys = {
-  all: ['institutions'] as const,
-  list: (query?: { q?: string; type?: string }) =>
-    ['institutions', 'list', query ?? {}] as const,
-};
-
 // ----- useNearbyProblems --------------------------------------------------
 
 export interface UseNearbyProblemsArgs {
@@ -82,6 +76,7 @@ export function useNearbyProblems(
 export interface UseProblemsListArgs {
   category?: string;
   status?: string;
+  institutionId?: string;
 }
 
 export function useProblemsList(

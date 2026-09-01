@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LogIn, LogOut, Map as MapIcon, Plus, List } from 'lucide-react';
+import { Building2, LogIn, LogOut, Map as MapIcon, Plus, List } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/cn';
@@ -20,6 +20,7 @@ export function TopNav() {
   const links = [
     { href: '/map', label: 'Térkép', icon: MapIcon },
     { href: '/problems', label: 'Lista', icon: List },
+    { href: '/institutions', label: 'Intézmények', icon: Building2 },
     { href: '/submit', label: 'Új bejelentés', icon: Plus },
   ];
 
