@@ -40,7 +40,7 @@ Források (csak ezekből dolgozz, mindent hivatkozz):
 
 {sources}
 
-Készíts magyar nyelvű, tömör összefoglalót a problémáról a fenti szabályok szerint. A válasz JSON formátumban legyen: {"title": "...", "body": "..."}`;
+Készíts magyar nyelvű, tömör összefoglalót a problémáról. A válaszod a rendszer promptban megadott TITLE: / BODY: szöveges formátumban legyen, minden állítást idézz a forrásokból.`;
 
 /**
  * Substitute `{placeholder}` slots in `USER_PROMPT_TEMPLATE`.
@@ -52,7 +52,7 @@ export function renderUserPrompt(input: UserPromptInputs): string {
   const sourcesBlock = input.sources
     .map(
       (s, i) =>
-        `${i + 1}. ${s.title}\n   URL: ${s.url}\n   Snippet: ${s.snippet.slice(0, 500)}`,
+        `[${i + 1}] ${s.title}\n   URL: ${s.url}\n   Snippet: ${s.snippet.slice(0, 500)}`,
     )
     .join("\n\n");
 
