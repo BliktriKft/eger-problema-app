@@ -1,0 +1,45 @@
+{
+  "name": "@eger/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared TypeScript types + Zod schemas + enum constants for the Eger Város Probléma Térkép monorepo. Single source of truth across web, mobile and api.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist-cjs/index.cjs"
+    },
+    "./constants": {
+      "types": "./dist/constants/index.d.ts",
+      "import": "./dist/constants/index.js",
+      "require": "./dist-cjs/constants/index.cjs"
+    },
+    "./schemas": {
+      "types": "./dist/schemas/index.d.ts",
+      "import": "./dist/schemas/index.js",
+      "require": "./dist-cjs/schemas/index.cjs"
+    },
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.js",
+      "require": "./dist-cjs/types/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.build.cjs.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "lint": "tsc --noEmit",
+    "test": "echo \"no tests yet\" && exit 0",
+    "clean": "rm -rf dist dist-cjs"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}
