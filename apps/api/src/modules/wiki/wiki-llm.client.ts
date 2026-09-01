@@ -3,210 +3,76 @@ import { Injectable, Logger } from "@nestjs/common";
 import { renderUserPrompt, UserPromptInputs } from "./prompts/user.prompt.template";
 
 /**
- * Multi-provider LLM client for wiki entry generation.
+ * Anthropic Claude client wrapper.
  *
  * Why this exists:
- *   - Centralizes provider selection + model name + prompt version
- *     so the `WikiEntry.modelVersion` column stays accurate.
- *   - Provides a deterministic **mock fallback** when the selected
- *     provider has no API key configured (or the API call fails),
- *     so the wiki flow can be exercised end-to-end in dev/CI without
- *     burning API quota.
- *   - Decouples the wiki service from any specific LLM SDK. The
- *     Anthropic SDK is imported here only; switching provider is an
- *     env flag (`LLM_PROVIDER`), not a code change.
- *
- * Provider selection (`LLM_PROVIDER`):
- *   - `mock`    → never calls the network; returns a Hungarian
- *                 placeholder. Default. Safe for CI.
- *   - `minimax` → calls `https://api.minimax.io/anthropic` via the
- *                 Anthropic-compatible SDK using `MINIMAX_API_KEY`
- *                 and `MINIMAX_MODEL` (default `MiniMax-M3`).
- *   - `claude`  → calls the official Anthropic API using
- *                 `ANTHROPIC_API_KEY` and `CLAUDE_MODEL` (default
- *                 `claude-3-5-sonnet-latest`).
- *
- * Graceful degradation: if the configured provider is missing an
- * API key, or the call throws at runtime, the client logs a warning
- * and returns the mock fallback. The downstream validator (every
- * claim must have a citation) keeps passing because the mock body
- * always cites at least one source URL.
+ *   - Centralizes the model name + prompt version (so the
+ *     `WikiEntry.modelVersion` column stays accurate).
+ *   - Provides a deterministic **mock fallback** when
+ *     `ANTHROPIC_API_KEY` is not configured, so the wiki flow can
+ *     still be exercised end-to-end in dev/test without burning API
+ *     quota.
+ *   - Decouples the wiki service from the Anthropic SDK shape (the
+ *     SDK is only imported here).
  *
  * Contract:
- *   - `generate()` returns `{ title, body, modelVersion, mocked }`.
- *   - `title` is at most `MAX_TITLE_CHARS` (200) characters.
- *   - `body` is at most `WIKI_MAX_BODY_CHARS` (1500) characters.
- *   - `modelVersion` is `"<provider>:<model>@<promptVersion>"` for
- *     real calls, or `"mock@<promptVersion>"` for the fallback.
+ *   - `generate()` returns `{ title, body }` where `body` is at most
+ *     `WIKI_MAX_BODY_CHARS` (1500) characters.
+ *   - The mock fallback ALWAYS cites at least one source URL so the
+ *     downstream validator (every claim must have a citation) does
+ *     not reject it.
  */
 export interface WikiLlmResult {
   title: string;
   body: string;
-  /** Model identifier, e.g. `claude:claude-3-5-sonnet-latest@v1`. */
+  /** Model identifier, e.g. `claude-3-5-sonnet-latest@v1`. */
   modelVersion: string;
   /** True if the response came from the mock fallback (no API call). */
   mocked: boolean;
 }
 
-export type LlmProvider = "mock" | "minimax" | "claude";
-
-const PROVIDER_VALUES: ReadonlyArray<LlmProvider> = [
-  "mock",
-  "minimax",
-  "claude",
-];
-
+const MODEL_NAME = process.env.WIKI_LLM_MODEL ?? "claude-3-5-sonnet-latest";
 const PROMPT_VERSION = "v1";
+const MODEL_VERSION = `${MODEL_NAME}@${PROMPT_VERSION}`;
 const MAX_BODY_CHARS = Number(process.env.WIKI_MAX_BODY_CHARS ?? 1500);
 const MAX_TITLE_CHARS = 200;
-const MAX_TOKENS = 1024;
-
-/**
- * Default model per provider. Can be overridden via env.
- *   - CLAUDE_MODEL    → Anthropic SDK model id
- *   - MINIMAX_MODEL   → MiniMax M-series model id
- */
-function defaultModelFor(provider: LlmProvider): string {
-  if (provider === "minimax") return "MiniMax-M3";
-  if (provider === "claude") return "claude-3-5-sonnet-latest";
-  return "mock";
-}
-
-function readProviderEnv(): LlmProvider {
-  const raw = (process.env.LLM_PROVIDER ?? "mock").toLowerCase();
-  if ((PROVIDER_VALUES as ReadonlyArray<string>).includes(raw)) {
-    return raw as LlmProvider;
-  }
-  return "mock";
-}
 
 @Injectable()
 export class WikiLlmClient {
   private readonly logger = new Logger(WikiLlmClient.name);
-  private readonly provider: LlmProvider;
-  private readonly anthropicClaude?: Anthropic;
-  private readonly anthropicMinimax?: Anthropic;
+  private readonly client: Anthropic | null;
+  private readonly apiKey: string | undefined;
 
   constructor() {
-    const requested = readProviderEnv();
-    const apiKey = this.resolveApiKey(requested);
-    if (apiKey === null) {
-      // Missing key OR explicitly mocked provider → graceful mock.
-      if (requested !== "mock") {
-        this.logger.warn(
-          `LLM_PROVIDER=${requested} but the required API key is not set; falling back to mock`,
-        );
-      }
-      this.provider = "mock";
-      return;
-    }
-
-    this.provider = requested;
-    if (requested === "claude") {
-      this.anthropicClaude = new Anthropic({ apiKey });
+    this.apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!this.apiKey) {
+      this.logger.warn(
+        "ANTHROPIC_API_KEY not set; WikiLlmClient will return the mock fallback",
+      );
+      this.client = null;
     } else {
-      // minimax: Anthropic-compatible SDK against the MiniMax gateway.
-      this.anthropicMinimax = new Anthropic({
-        apiKey,
-        baseURL: "https://api.minimax.io/anthropic",
-      });
+      this.client = new Anthropic({ apiKey: this.apiKey });
     }
-  }
-
-  /**
-   * Public read accessor — useful for tests + for the controller to
-   * surface the active provider in a `/wiki/health` endpoint later.
-   */
-  getProvider(): LlmProvider {
-    return this.provider;
   }
 
   /**
    * Generate a wiki entry for a Problem.
    *
-   * Provider resolution happens in the constructor. The body of this
-   * method is split into the mock fast-path and the real call path
-   * so the mock path stays allocation-free in dev/CI.
+   * If no API key is configured, returns a Hungarian placeholder
+   * with citations to the provided sources. Otherwise calls the
+   * Claude API and parses the JSON response.
    */
   async generate(input: UserPromptInputs): Promise<WikiLlmResult> {
-    if (this.provider === "mock") {
+    if (!this.client) {
       return this.mockResult(input);
     }
-    try {
-      return await this.callProvider(input);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(
-        `LLM call failed (provider=${this.provider}): ${message}; falling back to mock`,
-      );
-      return this.mockResult(input);
-    }
-  }
-
-  // -----------------------------------------------------------------
-  // Internals
-  // -----------------------------------------------------------------
-
-  private resolveApiKey(provider: LlmProvider): string | null {
-    if (provider === "mock") return null;
-    if (provider === "minimax") {
-      const key = process.env.MINIMAX_API_KEY;
-      return key && key.length > 0 ? key : null;
-    }
-    // claude
-    const key = process.env.ANTHROPIC_API_KEY;
-    return key && key.length > 0 ? key : null;
-  }
-
-  private async callProvider(input: UserPromptInputs): Promise<WikiLlmResult> {
-    const client =
-      this.provider === "claude"
-        ? this.anthropicClaude
-        : this.anthropicMinimax;
-    if (!client) {
-      // Defensive — should be unreachable because the constructor
-      // demotes to `mock` when the key is missing.
-      return this.mockResult(input);
-    }
-
-    const model =
-      (this.provider === "claude"
-        ? process.env.CLAUDE_MODEL
-        : process.env.MINIMAX_MODEL) ?? defaultModelFor(this.provider);
-
-    const userPrompt = renderUserPrompt(input);
-    const systemPrompt = await this.loadSystemPrompt();
-
-    const response = await client.messages.create({
-      model,
-      max_tokens: MAX_TOKENS,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    });
-
-    const textBlock = response.content.find((b) => b.type === "text");
-    if (!textBlock || textBlock.type !== "text") {
-      throw new Error("LLM response had no text block");
-    }
-
-    const parsed = parseReply(textBlock.text);
-    const title = String(parsed.title ?? "").slice(0, MAX_TITLE_CHARS).trim();
-    const body = String(parsed.body ?? "").slice(0, MAX_BODY_CHARS).trim();
-    if (!title || !body) {
-      throw new Error("LLM response missing title or body");
-    }
-    return {
-      title,
-      body,
-      modelVersion: `${this.provider}:${model}@${PROMPT_VERSION}`,
-      mocked: false,
-    };
+    return this.callClaude(input);
   }
 
   /**
    * Mock fallback. Always cites at least one source URL so the
    * wiki service's "every claim must have a citation" validator
-   * passes. Intended for dev + CI + any deployment without a key.
+   * passes. Intended for dev + tests only.
    */
   private mockResult(input: UserPromptInputs): WikiLlmResult {
     const firstSource = input.sources[0];
@@ -215,7 +81,7 @@ export class WikiLlmClient {
       : " _(források hiányában)_";
     const body =
       `A beküldött probléma („${input.problemTitle.slice(0, 80)}”) háttere jelenleg nem áll rendelkezésre automatikus elemzéssel. ` +
-      `A tényleges wiki összefoglaló a V2 fázisban aktiválódik, amint az LLM API kulcs konfigurálva lesz.` +
+      `A tényleges wiki összefoglaló a V2 fázisban aktiválódik, amint az Anthropic API kulcs konfigurálva lesz.` +
       cite;
     return {
       title: `Háttér: ${input.problemTitle.slice(0, MAX_TITLE_CHARS - 12)}`.slice(
@@ -226,6 +92,44 @@ export class WikiLlmClient {
       modelVersion: `mock@${PROMPT_VERSION}`,
       mocked: true,
     };
+  }
+
+  /**
+   * Real Claude call. Kept separate so the mock path is exercised
+   * by default in dev. When `ANTHROPIC_API_KEY` is set, this issues
+   * a `messages.create` and parses the JSON reply.
+   *
+   * System prompt is loaded from `./prompts/system.prompt.md` at
+   * build time (a tiny build step inlines it as a string). To keep
+   * the dependency surface small in V2, we read it at module load.
+   */
+  private async callClaude(input: UserPromptInputs): Promise<WikiLlmResult> {
+    if (!this.client) {
+      // Defensive — should never happen because `generate()` short-circuits.
+      return this.mockResult(input);
+    }
+    const userPrompt = renderUserPrompt(input);
+    const systemPrompt = await this.loadSystemPrompt();
+
+    const response = await this.client.messages.create({
+      model: MODEL_NAME,
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
+    });
+
+    // Extract the first text block and try to parse it as JSON.
+    const textBlock = response.content.find((b) => b.type === "text");
+    if (!textBlock || textBlock.type !== "text") {
+      throw new Error("Claude response had no text block");
+    }
+    const parsed = parseJsonReply(textBlock.text);
+    const title = String(parsed.title ?? "").slice(0, MAX_TITLE_CHARS).trim();
+    const body = String(parsed.body ?? "").slice(0, MAX_BODY_CHARS).trim();
+    if (!title || !body) {
+      throw new Error("Claude response missing title or body");
+    }
+    return { title, body, modelVersion: MODEL_VERSION, mocked: false };
   }
 
   /**
@@ -246,51 +150,7 @@ export class WikiLlmClient {
 }
 
 /**
- * Tolerant reply parser. The system prompt asks for either
- *   - `TITLE: …\n\nBODY:\n…` (textual format), or
- *   - a JSON object `{"title":"…","body":"…"}`.
- *
- * Both shapes are accepted so the same parser works for MiniMax
- * (which tends to emit the textual form) and Claude (which tends
- * to emit JSON when the system prompt asks for it). We try the
- * textual form first, then JSON.
- */
-export function parseReply(
-  raw: string,
-): { title?: string; body?: string } {
-  const textual = parseTextualReply(raw);
-  if (textual.title || textual.body) {
-    return textual;
-  }
-  return parseJsonReply(raw);
-}
-
-/**
- * Parse the `TITLE: …\n\nBODY:\n…` textual format.
- *
- * Rules:
- *   - `TITLE:` must appear at the start of a line.
- *   - The title is everything on that line up to the next newline.
- *   - `BODY:` must appear at the start of a later line. The body
- *     is everything after that line until end of input.
- */
-export function parseTextualReply(
-  raw: string,
-): { title?: string; body?: string } {
-  const titleMatch = raw.match(/^TITLE:\s*(.+)$/m);
-  const bodyMatch = raw.match(/^BODY:\s*\n?([\s\S]+)$/m);
-  const result: { title?: string; body?: string } = {};
-  if (titleMatch?.[1]) {
-    result.title = titleMatch[1].trim();
-  }
-  if (bodyMatch?.[1]) {
-    result.body = bodyMatch[1].trim();
-  }
-  return result;
-}
-
-/**
- * Tolerant JSON parser. LLM replies sometimes wrap the JSON in a
+ * Tolerant JSON parser. Claude sometimes wraps the JSON in a
  * ```json … ``` fence; strip those before parsing.
  */
 function parseJsonReply(raw: string): { title?: string; body?: string } {
@@ -314,6 +174,6 @@ function parseJsonReply(raw: string): { title?: string; body?: string } {
         /* fall through */
       }
     }
-    throw new Error(`LLM reply was not valid JSON: ${trimmed.slice(0, 200)}`);
+    throw new Error(`Claude reply was not valid JSON: ${trimmed.slice(0, 200)}`);
   }
 }
