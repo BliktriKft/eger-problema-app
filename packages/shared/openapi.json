@@ -1,0 +1,523 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/auth/me": {
+      "get": {
+        "operationId": "AuthController_me",
+        "summary": "Get the currently authenticated user",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "summary": "Stateless logout (client drops the session)",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/problems": {
+      "get": {
+        "operationId": "ProblemsController_findAll",
+        "summary": "List problems (paginated, filtered)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "problems"
+        ]
+      },
+      "post": {
+        "operationId": "ProblemsController_create",
+        "summary": "Create a new problem (auth required)",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProblemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "problems"
+        ]
+      }
+    },
+    "/api/problems/nearby": {
+      "get": {
+        "operationId": "ProblemsController_nearby",
+        "summary": "Find problems within `radius` metres of (lat, lng)",
+        "parameters": [
+          {
+            "name": "lat",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "minimum": -90,
+              "maximum": 90,
+              "type": "number"
+            }
+          },
+          {
+            "name": "lng",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "minimum": -180,
+              "maximum": 180,
+              "type": "number"
+            }
+          },
+          {
+            "name": "radius",
+            "required": true,
+            "in": "query",
+            "description": "Radius in metres",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50000,
+              "default": 2000,
+              "type": "number"
+            }
+          },
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "infrastructure",
+                "public_safety",
+                "environment",
+                "institution",
+                "transport",
+                "other"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "problems"
+        ]
+      }
+    },
+    "/api/problems/{id}": {
+      "patch": {
+        "operationId": "ProblemsController_update",
+        "summary": "Update a problem (author or admin)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProblemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "problems"
+        ]
+      },
+      "delete": {
+        "operationId": "ProblemsController_remove",
+        "summary": "Delete a problem (author or admin)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "problems"
+        ]
+      }
+    },
+    "/api/institutions": {
+      "get": {
+        "operationId": "InstitutionsController_findAll",
+        "summary": "List institutions (public)",
+        "parameters": [
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "school",
+                "hospital",
+                "pool",
+                "library",
+                "government",
+                "other"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Free-text name search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "institutions"
+        ]
+      }
+    },
+    "/api/institutions/{id}": {
+      "get": {
+        "operationId": "InstitutionsController_findOne",
+        "summary": "Get one institution",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "institutions"
+        ]
+      }
+    },
+    "/api/problems/{id}/vote": {
+      "post": {
+        "operationId": "VotingController_cast",
+        "summary": "Cast or change a vote (+1/-1) on a problem (auth required)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CastVoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "voting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/problems/{id}/wiki": {
+      "get": {
+        "operationId": "WikiController_get",
+        "summary": "Fetch the AI-generated wiki entry for a problem",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "wiki"
+        ]
+      }
+    },
+    "/api/problems/{id}/wiki/regenerate": {
+      "post": {
+        "operationId": "WikiController_regenerate",
+        "summary": "Trigger a regeneration of the wiki entry (service-role only)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "wiki"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/health/live": {
+      "get": {
+        "operationId": "HealthController_live",
+        "summary": "Liveness probe (process responsive)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/health/ready": {
+      "get": {
+        "operationId": "HealthController_ready",
+        "summary": "Readiness probe (dependencies healthy)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "health"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Eger Város Probléma Térkép API",
+    "description": "Community problem-reporting API for Eger, Hungary.",
+    "version": "0.1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "CreateProblemDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 5000
+          },
+          "latitude": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "infrastructure",
+              "public_safety",
+              "environment",
+              "institution",
+              "transport",
+              "other"
+            ]
+          },
+          "institutionId": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "title",
+          "description",
+          "latitude",
+          "longitude",
+          "category"
+        ]
+      },
+      "UpdateProblemDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "infrastructure",
+              "public_safety",
+              "environment",
+              "institution",
+              "transport",
+              "other"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "investigating",
+              "resolved",
+              "closed"
+            ]
+          },
+          "institutionId": {
+            "type": "object",
+            "nullable": true
+          }
+        }
+      },
+      "CastVoteDto": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "number",
+            "enum": [
+              1,
+              -1
+            ]
+          }
+        },
+        "required": [
+          "value"
+        ]
+      }
+    }
+  }
+}

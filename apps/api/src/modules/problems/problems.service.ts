@@ -1,5 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../database/database.module";
 
 /**
  * Problems service placeholder.
@@ -12,7 +13,7 @@ import { PrismaClient } from "@prisma/client";
  */
 @Injectable()
 export class ProblemsService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   findAll(): Promise<unknown[]> {
     return Promise.resolve([]);

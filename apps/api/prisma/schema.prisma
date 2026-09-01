@@ -22,9 +22,9 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
   extensions = [postgis, pgcrypto]
 }
 
@@ -66,14 +66,14 @@ enum InstitutionType {
 /// hitting `auth.users` directly. Populated by a trigger in the init
 /// migration (`on_auth_user_created`).
 model User {
-  id          String   @id @db.Uuid
-  email       String   @unique @db.VarChar(320)
-  name        String?  @db.VarChar(120)
-  avatarUrl   String?  @map("avatar_url") @db.VarChar(500)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id        String   @id @db.Uuid
+  email     String   @unique @db.VarChar(320)
+  name      String?  @db.VarChar(120)
+  avatarUrl String?  @map("avatar_url") @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  problems    Problem[]
-  votes       Vote[]
+  problems Problem[]
+  votes    Vote[]
 
   @@map("users")
 }
@@ -86,31 +86,31 @@ model User {
 /// migration creates the column and a GIST index on it. Reads/writes go
 /// through `ST_X`, `ST_Y`, `ST_SetSRID(ST_MakePoint(...), 4326)`.
 model Problem {
-  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title        String         @db.VarChar(200)
-  description  String         @db.Text
+  id            String                                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title         String                                @db.VarChar(200)
+  description   String                                @db.Text
   /// PostGIS geography(Point, 4326). Populated via raw SQL.
-  location     Unsupported("geography(Point, 4326)")
+  location      Unsupported("geography(Point, 4326)")
   /// Cached latitude, kept in sync with `location` by the API layer.
   /// Useful for ordering / range queries that do not need geo distance.
-  latitude     Float          @db.DoublePrecision
-  longitude    Float          @db.DoublePrecision
-  category     ProblemCategory
-  status       ProblemStatus  @default(open)
+  latitude      Float                                 @db.DoublePrecision
+  longitude     Float                                 @db.DoublePrecision
+  category      ProblemCategory
+  status        ProblemStatus                         @default(open)
   /// Optional FK to an Institution. Null = civic-level report.
-  institutionId String?       @map("institution_id") @db.Uuid
-  createdBy    String         @map("created_by") @db.Uuid
-  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  institutionId String?                               @map("institution_id") @db.Uuid
+  createdBy     String                                @map("created_by") @db.Uuid
+  createdAt     DateTime                              @default(now()) @map("created_at") @db.Timestamptz(6)
   /// Aggregated upvote - downvote. Maintained by the voting service via
   /// UPSERT on `votes`. A trigger is set up in the init migration to
   /// keep this consistent as a backstop.
-  score        Int            @default(0)
+  score         Int                                   @default(0)
 
-  institution  Institution?  @relation(fields: [institutionId], references: [id], onDelete: SetNull)
-  creator      User          @relation(fields: [createdBy], references: [id], onDelete: Cascade)
-  votes        Vote[]
-  wikiEntry    WikiEntry?
-  links        ProblemInstitutionLink[]
+  institution Institution?             @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  creator     User                     @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  votes       Vote[]
+  wikiEntry   WikiEntry?
+  links       ProblemInstitutionLink[]
 
   @@index([category])
   @@index([status])
@@ -130,8 +130,8 @@ model Institution {
   longitude   Float           @db.DoublePrecision
   officialUrl String?         @map("official_url") @db.VarChar(500)
 
-  problems    Problem[]
-  links       ProblemInstitutionLink[]
+  problems Problem[]
+  links    ProblemInstitutionLink[]
 
   @@index([type])
   @@index([name])
@@ -143,9 +143,9 @@ model Institution {
 /// link, but the bridge is in place for V2 (e.g. "this road work blocks
 /// the bus to school X and the hospital Y").
 model ProblemInstitutionLink {
-  problemId     String     @map("problem_id") @db.Uuid
-  institutionId String     @map("institution_id") @db.Uuid
-  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  problemId     String   @map("problem_id") @db.Uuid
+  institutionId String   @map("institution_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   problem     Problem     @relation(fields: [problemId], references: [id], onDelete: Cascade)
   institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)

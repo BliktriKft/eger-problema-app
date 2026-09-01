@@ -12,6 +12,7 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
+    "rootDir": "./src",
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
@@ -21,10 +22,7 @@
     "noFallthroughCasesInSwitch": true,
     "resolveJsonModule": true,
     "types": ["node", "jest"],
-    "paths": {
-      "@eger/shared": ["../../packages/shared/src/index.ts"],
-      "@eger/shared/*": ["../../packages/shared/src/*"]
-    }
+    "paths": {}
   },
   "include": ["src/**/*", "test/**/*"],
   "exclude": ["node_modules", "dist"]

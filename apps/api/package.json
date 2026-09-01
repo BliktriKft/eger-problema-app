@@ -18,7 +18,7 @@
     "db:reset": "prisma migrate reset",
     "db:seed": "ts-node prisma/seed.ts",
     "docs:export": "pnpm run docs:export:ci",
-    "docs:export:ci": "tsc -p tsconfig.swagger.json && node dist/swagger.js && cp openapi.json ../../packages/shared/openapi.json"
+    "docs:export:ci": "rm -rf dist tsconfig.tsbuildinfo; nest build; DATABASE_URL='postgresql://placeholder:placeholder@localhost:5432/placeholder' DIRECT_URL='postgresql://placeholder:placeholder@localhost:5432/placeholder' SUPABASE_URL='https://placeholder.supabase.co' SUPABASE_SERVICE_ROLE_KEY='placeholder' EXPORT_OPENAPI=1 node dist/main.js && cp openapi.json ../../packages/shared/openapi.json"
   },
   "dependencies": {
     "@eger/shared": "workspace:*",
