@@ -1,0 +1,116 @@
+# QA — Playwright + axe-core accessibility audit
+#
+# Runs on every PR to main:
+#   * playwright-e2e  — full multi-browser Playwright suite (chromium,
+#                        firefox, webkit) plus the mobile viewport projects
+#                        (Pixel 5 + iPhone 13).
+#   * playwright-a11y — axe-core sweep across every public route, plus
+#                        the four design-audit-targeted assertions.
+#
+# Detox (iOS + Android mobile E2E) needs a macOS / KVM host and is wired
+# in Task Q2. The qa/ folder under apps/mobile/ carries the config + 4
+# tests today, so this workflow does not block waiting for those runners.
+
+name: QA
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  playwright-e2e:
+    name: Playwright E2E (chromium + firefox + webkit, mobile viewports)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      # PostGIS is handy if the spec suite ends up touching the NestJS
+      # backend; the QA suite itself uses the in-memory mock so this is
+      # future-proofing for Task Q2's Supertest integration tests.
+      postgres:
+        image: postgis/postgis:15-3.4
+        env:
+          POSTGRES_USER: qa
+          POSTGRES_PASSWORD: qa
+          POSTGRES_DB: eger_qa
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: |
+          pnpm --filter @eger/web exec playwright install --with-deps \
+            chromium firefox webkit
+
+      - name: Run Playwright suite
+        env:
+          CI: 'true'
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+        run: pnpm --filter @eger/web test:e2e
+
+      - name: Upload HTML report (always — humans want to look)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 14
+
+      - name: Upload test-results (failure artefacts)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: apps/web/test-results
+          retention-days: 14
+
+  playwright-a11y:
+    name: Accessibility audit (axe-core + design-audit assertions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [playwright-e2e]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium for axe-core
+        run: pnpm --filter @eger/web exec playwright install --with-deps chromium
+
+      - name: Run a11y spec only
+        env:
+          CI: 'true'
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+        run: pnpm --filter @eger/web test:e2e:a11y
+
+      - name: Upload a11y report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a11y-report
+          path: apps/web/playwright-report
+          retention-days: 14
