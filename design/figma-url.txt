@@ -1,50 +1,115 @@
-FIGMA FILE — PENDING MANUAL CREATION
+Figma file — PENDING MANUAL BOOTSTRAP
+=====================================
 
-Status: not yet created. The website-designer profile does not currently have a
-Figma Personal Access Token provisioned (FIGMA_PERSONAL_ACCESS_TOKEN is empty
-in ~/.hermes/profiles/website-designer/.env). The Figma REST API requires an
-authenticated write-capable token to create files; without it, the file cannot
-be bootstrapped from this session.
+Status:  the Figma file for this project has not been created yet. It is NOT
+         a script bug — the Figma REST API does not support file creation via
+         Personal Access Tokens. The PAT only allows us to populate pages in
+         an EXISTING file. We need a human to create the file in the Figma UI
+         and paste the file key here.
 
-URL: <https://www.figma.com/files/team/...?node-id=> (TBD — see bootstrap steps below)
+URL:     https://www.figma.com/files/<FILE_KEY>/Eger-Varos-Problema-Terkep
+File key: <empty — fill in after manual creation>
 
-HOW TO BOOTSTRAP
+Last probe run: 2026-09-01 (see "PROBE RESULTS" below)
+Pages once populated: 7 (per design/figma-spec.md)
 
-Once a token with file-write scope is available, do the following:
 
-1. Get a Personal Access Token from Figma → Settings → Personal access tokens.
-   Required scopes: File content (read + write).
+WHAT WAS PROBED (Task D2)
+-------------------------
 
-2. Add it to ~/.hermes/profiles/website-designer/.env:
-       FIGMA_PERSONAL_ACCESS_TOKEN=figd_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-       FIGMA_FILE_KEY=        # leave empty until file is created
+Empirical test of the Figma Personal Access Token currently in
+~/.hermes/profiles/website-designer/.env (figd_SLLb...):
 
-3. From /home/bliktri/workspaces/eger-problema-app:
-       pnpm --filter @eger/design figma:export
+  GET  /v1/me                      → 200 OK  (user: adam.toth@bliktri.com)
+  GET  /v1/teams                   → 404     (PAT has NO team visibility)
+  POST /v1/files                   → 404     (endpoint does not exist in
+                                            the Figma REST API for any auth
+                                            type)
+  POST /v1/teams/BliktriKft/files  → 404     (no team access; "BliktriKft"
+                                            treated as team id, did not
+                                            resolve)
+  POST /v1/files/<key>/pages       → would work IF (a) FILE_KEY points to a
+                                     real file the PAT can access, AND (b)
+                                     the PAT has File-content write scope
+                                     (not just read)
 
-   The bootstrap script will:
-   - POST to https://api.figma.com/v1/files (or use the team endpoint
-     https://api.figma.com/v1/teams/<TEAM_ID>/files) to create a new file
-     in the BliktriKft workspace.
-   - Capture the file key from the response and write it to FIGMA_FILE_KEY.
-   - Create the 13 required pages (Cover, Tokens, Components, 7 Web screens,
-     4 Mobile screens, Accessibility audit, Empty/Loading/Error states).
-   - Save the public file URL to design/figma-url.txt.
+Conclusion:
+  - The current PAT can read the user's own profile but not write files or
+    see teams. It is a personal-space read-only token, NOT a team write
+    token.
+  - To bootstrap the file we need ONE of:
+      (A) a new PAT with File-content (read+write) scope AND with team
+          visibility for BliktriKft; the user creates the file in the Figma
+          UI once, then `pnpm --filter @eger/design figma:export` finishes
+          the bootstrap; OR
+      (B) a human creates the file in the Figma UI right now, paste the
+          file key into .env as FIGMA_FILE_KEY, and re-run the script.
+  - Even with a write-scoped PAT, Figma's REST API still won't let us
+    CREATE the file programmatically — only populate pages inside one.
 
-4. Re-run the export script to sync design tokens to the Figma variables panel:
-       pnpm --filter @eger/design figma:export
 
-PAGES TO CREATE (REQUIRED BY ACCEPTANCE CRITERIA)
+MANUAL BOOTSTRAP — STEP BY STEP
+-------------------------------
 
-The 13 pages must exist for the MVP. Until Figma is provisioned, the wireframes
-live in design/components/*.md as Markdown specs that engineers can implement
-directly. See design/figma-spec.md for the full per-page content spec.
+The fastest path right now (no PAT swap needed if you have any write-scoped
+PAT or if you're OK doing one round of UI work):
 
-ACCEPTANCE CRITERIA STATUS
+  1. Open https://www.figma.com/files/team/BliktriKft
+     (or https://www.figma.com/files/recent if not in a team context)
 
-[x] Design tokens JSON files                  design/tokens/*.json
-[x] Tailwind config + globals.css HSL vars    apps/web/{tailwind.config.ts,app/globals.css}
-[x] 9 component Markdown specs                design/components/*.md
-[x] Map pin SVG icons                         design/map/*.svg
-[x] export-tokens.ts script                   design/scripts/export-tokens.ts
-[ ] Figma file created                        BLOCKED — awaiting PAT
+  2. Click "New design file" → name it:
+         Eger Város Probléma Térkép — Design System
+
+  3. The new file's URL will look like:
+         https://www.figma.com/file/<FILE_KEY>/Eger-Város-...
+     Copy the <FILE_KEY> segment.
+
+  4. Add to ~/.hermes/profiles/website-designer/.env:
+         FIGMA_FILE_KEY=<paste the key here>
+
+  5. Run the bootstrap:
+         cd /home/bliktri/workspaces/eger-problema-app
+         pnpm --filter @eger/design figma:export --dry-run    # preview
+         pnpm --filter @eger/design figma:export              # actually create
+
+     The script will create 7 pages (idempotent — already-existing pages are
+     skipped) and rewrite this file with the live URL.
+
+  6. Open the resulting Figma file URL and drag in the component frames
+     described in design/figma-spec.md. The script only scaffolds pages, not
+     visual content.
+
+
+IF YOU NEED A WRITE-SCOPED PAT
+------------------------------
+
+  1. Go to https://www.figma.com/developers/api#access-tokens
+  2. "Create a new personal access token"
+  3. Name it "eger-problema-design-bootstrap"
+  4. Set scope to **File content (read+write)**
+     — Without this, /v1/files/<key>/pages returns 403.
+  5. Make sure the token has visibility into the BliktriKft team:
+     - If BliktriKft is a Figma team you're a member of, the PAT can see it.
+     - If BliktriKft is just a workspace folder under your personal account,
+       the PAT can still see it (workspaces are per-user).
+     - Either way, the token must be created by a Figma account that is a
+       member of BliktriKft (or by the team admin) — Personal Access Tokens
+       only see files the user can already see.
+  6. Paste the new token into ~/.hermes/profiles/website-designer/.env,
+     replacing the old FIGMA_PERSONAL_ACCESS_TOKEN line.
+
+
+ACCEPTANCE CRITERIA STATUS (Task D2)
+-------------------------------------
+
+[x] design/scripts/figma-export.ts rewritten to do real token probing + clear
+    manual-bootstrap instructions (no more "throw and hope" behaviour).
+[x] design/figma-spec.md updated to disambiguate 7 pages vs 13 logical
+    content groups.
+[x] Token capability empirically verified (probe results above).
+[ ] Figma file URL — BLOCKED on:
+      (1) Human creating the file in Figma UI, OR
+      (2) Provisioning a write-scoped PAT with team visibility.
+    See ~/.hermes/profiles/website/plans/0001-designer-blocker-figma.md for
+    the full blocker write-up that was pinged to the website lead.
+[ ] 7 pages created — depends on the above.

@@ -10,6 +10,7 @@
     "tokens:build": "node --experimental-strip-types scripts/build-index.ts",
     "export:tokens": "node --experimental-strip-types scripts/export-tokens.ts",
     "figma:export": "node --experimental-strip-types scripts/figma-export.ts",
+    "figma:probe": "node --experimental-strip-types scripts/figma-probe.ts",
     "contrast:audit": "node --experimental-strip-types scripts/contrast-audit.ts",
     "lint": "tsc --noEmit"
   },

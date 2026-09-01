@@ -1,6 +1,29 @@
 # Figma library — page-by-page spec
 
-> Per-page content spec for the Eger Város Probléma Térkép Figma file. The bootstrap script (`design/scripts/figma-export.ts`) creates these pages automatically when a Figma PAT is available; until then, this file documents what should go on each page so the human designer (or another agent) can build it manually.
+> Per-page content spec for the Eger Város Probléma Térkép Figma file. The
+> bootstrap script (`design/scripts/figma-export.ts`) creates these pages
+> automatically when the prerequisites are met; until then, this file documents
+> what should go on each page so the human designer (or another agent) can
+> build it manually.
+
+## Page structure
+
+The file contains **7 Figma pages**. Several pages hold multiple frames; the
+total surface the user sees is **13 logical content groups** (1 cover, 1 token
+gallery, 1 component grid, 7 web-screen frames, 4 mobile-screen frames, 1
+accessibility page, 1 empty/loading/error page). The "13 vs 7" distinction
+matters: Figma REST API exposes only `pages`, not `frames`, so we count at the
+page level.
+
+| # | Page name                          | Frames inside the page                  |
+|---|------------------------------------|------------------------------------------|
+| 1 | 📐 Cover                           | (single cover frame)                     |
+| 2 | 🎨 Design tokens                   | color swatches, type ramp, scale bar     |
+| 3 | 🧩 Components                      | 8 component grids × variants             |
+| 4 | 💻 Web screens                     | **7 frames**: landing, map, list, detail, submit, auth, profile |
+| 5 | 📱 Mobile screens                  | **4 frames**: map, feed, submit, detail  |
+| 6 | 🚦 Empty / Loading / Error states  | 21 frames (7 screens × 3 states)         |
+| 7 | ♿ Accessibility audit             | contrast table + focus + touch targets   |
 
 ## Page 1 — Cover
 
@@ -50,9 +73,7 @@ Each component laid out as a Frame with all variants × sizes × states in a gri
 - **Badge** — category, status, institution type. Variants: filled, outline, soft.
 - **EmptyState** — 6 variants (no-results, no-pins, no-votes, no-ai, error, first-time).
 
-## Page 4 — Web screens
-
-For each screen: a 1440×900 frame with the full layout annotated.
+## Page 4 — Web screens (7 frames, 1440×900 each)
 
 1. **Landing** — hero with "Jelents be egy problémát" CTA, recent 6 problems map preview, "Hogyan működik" 3-step explainer, footer.
 2. **Térkép (`/map`)** — full-bleed Leaflet map, left panel with category + institution filter (collapsible on mobile), floating "Új pin" CTA top-right.
@@ -62,7 +83,7 @@ For each screen: a 1440×900 frame with the full layout annotated.
 6. **Auth (`/login`, `/register`)** — split layout (illustration right), email + Google + Apple + Meta buttons, "elfelejtett jelszó" link.
 7. **Profile (`/profile`)** — avatar, name, "saját beküldések" tab, "upvote-jaim" tab, "beállítások" tab.
 
-## Page 5 — Mobile screens
+## Page 5 — Mobile screens (4 frames)
 
 iPhone 14 (390×844) frames + Android Pixel 7 (412×915) frames for each:
 
@@ -86,16 +107,42 @@ For each screen in Web + Mobile: empty variant, loading variant (skeleton), erro
 
 ## Generating the file
 
-Once FIGMA_PERSONAL_ACCESS_TOKEN is set:
+### Prerequisites
+
+1. A Figma Personal Access Token in `~/.hermes/profiles/website-designer/.env`:
+   ```
+   FIGMA_PERSONAL_ACCESS_TOKEN=figd_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   ```
+   Required scope: **File content (read + write)** — see
+   <https://www.figma.com/developers/api#access-tokens>. Without write scope,
+   the script exits with code 2.
+
+2. A Figma file that you have write access to. The REST API does **not**
+   support creating a file via PAT. To create one:
+     - Open <https://www.figma.com/files/team/BliktriKft> in a browser.
+     - Click **New design file** → name it `Eger Város Probléma Térkép — Design System`.
+     - Copy the file key from the URL (the segment between `/file/` and the
+       file name — e.g. `https://www.figma.com/file/AbCdEf12345G/...` → key is
+       `AbCdEf12345G`).
+     - Set `FIGMA_FILE_KEY=<key>` in your `.env`.
+
+### Run
 
 ```bash
 cd /home/bliktri/workspaces/eger-problema-app
-pnpm --filter @eger/design figma:export            # create + populate
-pnpm --filter @eger/design figma:export --dry-run  # preview only
+pnpm --filter @eger/design figma:export --dry-run    # probe + preview (no API writes)
+pnpm --filter @eger/design figma:export              # probe + populate pages
 ```
 
 The script will:
-1. Create the file via POST /v1/teams/<team>/files (if team-scoped) or instruct manual creation.
-2. Create the 7 pages via POST /v1/files/<key>/pages.
-3. Write the file key to design/figma-url.txt.
-4. NOT create the actual component frames — those need a designer. This script only scaffolds the page structure so the human designer can drop in the visual variants.
+1. Probe `/v1/me`, `/v1/teams`, and `/v1/files/<key>` to verify the token can
+   actually write. If the token is read-only, or the file isn't reachable, the
+   script exits 2 with an actionable error message.
+2. Create the 7 pages via `POST /v1/files/<key>/pages`. Pages that already
+   exist are skipped (idempotent).
+3. Write the public file URL to `design/figma-url.txt`.
+4. Append `FIGMA_FILE_KEY=<key>` to `.env` if it isn't already set.
+
+The script does **not** create the actual component frames — those need a
+human designer. It only scaffolds the page structure so the designer can
+drop in the visual variants per the per-page content above.
