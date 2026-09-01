@@ -196,3 +196,54 @@ model WikiEntry {
 
   @@map("wiki_entries")
 }
+
+/// Article fetched by the news scrapers (Eger TV / Egri Hírek / HEOL).
+/// Stored so the wiki service can search locally before calling Google
+/// News — the cost of an external search is bounded by what we already
+/// have on disk. Only the service_role inserts/updates (RLS in
+/// migration 0002_scraper_tables).
+model ScrapedArticle {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Canonical URL of the article. Unique — re-fetching the same URL
+  /// UPSERTs the row.
+  url         String   @unique
+  title       String   @db.VarChar(500)
+  /// Original publish timestamp from the source. Indexed for recency
+  /// queries during wiki generation.
+  publishedAt DateTime @map("published_at") @db.Timestamptz(6)
+  /// ≤500 char teaser, used as the LLM snippet for this source.
+  snippet     String   @db.Text
+  /// ≤2 KB of cleaned body text. Nullable: the cron job may skip the
+  /// full-text fetch for low-priority articles.
+  fullText    String?  @map("full_text") @db.Text
+  /// Source identifier — matches the `NewsSource.name` from the
+  /// scraper module: `egertv` | `egri-hirek` | `heol`.
+  source      String   @db.VarChar(50)
+  fetchedAt   DateTime @default(now()) @map("fetched_at") @db.Timestamptz(6)
+
+  @@index([source, publishedAt(sort: Desc)])
+  @@index([fetchedAt(sort: Desc)])
+  @@map("scraped_articles")
+}
+
+/// Audit log for every outbound HTTP request made by the scrapers.
+/// Records the outcome (success, robots_blocked, rate_limited, error)
+/// plus the duration so we can spot misbehaving sources.
+model WikiScraperLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// `egertv` | `egri-hirek` | `heol` (matches `ScrapedArticle.source`).
+  source     String   @db.VarChar(50)
+  /// URL that was requested (or attempted).
+  url        String   @db.VarChar(2000)
+  /// One of: `success`, `robots_blocked`, `rate_limited`, `error`.
+  status     String   @db.VarChar(30)
+  /// Optional error / robots.txt reason. Truncated to 2000 chars.
+  errorMsg   String?  @map("error_msg") @db.Text
+  /// Request duration in milliseconds.
+  durationMs Int      @map("duration_ms")
+  fetchedAt  DateTime @default(now()) @map("fetched_at") @db.Timestamptz(6)
+
+  @@index([source, fetchedAt(sort: Desc)])
+  @@index([status, fetchedAt(sort: Desc)])
+  @@map("wiki_scraper_logs")
+}

@@ -9,8 +9,10 @@ import { ProblemsModule } from './modules/problems/problems.module';
 import { InstitutionsModule } from './modules/institutions/institutions.module';
 import { VotingModule } from './modules/voting/voting.module';
 import { WikiModule } from './modules/wiki/wiki.module';
+import { ScraperModule } from './modules/scraper/scraper.module';
 import { HealthModule } from './modules/health/health.module';
 import { DatabaseModule } from './database/database.module';
+import { CommonModule } from './common/common.module';
 
 @Module({
   imports: [
@@ -31,11 +33,13 @@ import { DatabaseModule } from './database/database.module';
       },
     }),
     DatabaseModule,
+    CommonModule,
     AuthModule,
     ProblemsModule,
     InstitutionsModule,
     VotingModule,
     WikiModule,
+    ScraperModule,
     HealthModule,
   ],
   providers: [
