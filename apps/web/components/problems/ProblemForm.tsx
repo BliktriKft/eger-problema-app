@@ -4,15 +4,17 @@ import * as React from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { PROBLEM_CATEGORIES, PROBLEM_CATEGORY_LABELS_HU, PROBLEM_TITLE_MAX_LENGTH } from '@/types';
 import { Input, Textarea } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { ApiError, createProblem, listInstitutions } from '@/lib/api';
+import { useCreateProblem } from '@/lib/api/queries/problems';
+import { useInstitutions } from '@/lib/api/queries/institutions';
+import { ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth-context';
+import { USE_API, SUPABASE_CONFIGURED } from '@/lib/env';
 import { toast } from '@/components/ui/toaster';
 
 /**
@@ -45,19 +47,9 @@ export interface ProblemFormProps {
   initialLocation?: { latitude: number; longitude: number };
 }
 
-function useInstitutions(accessToken: string | null, enabled: boolean) {
-  return useQuery({
-    queryKey: ['institutions', { q: '' }],
-    queryFn: () => listInstitutions({}, accessToken),
-    enabled,
-    staleTime: 5 * 60_000,
-  });
-}
-
 export function ProblemForm({ initialLocation }: ProblemFormProps) {
   const router = useRouter();
-  const { isAuthenticated, session, isConfigured } = useAuth();
-  const qc = useQueryClient();
+  const { isAuthenticated } = useAuth();
 
   const fallback = { latitude: 47.9025, longitude: 20.3772 }; // Eger centre
 
@@ -83,49 +75,57 @@ export function ProblemForm({ initialLocation }: ProblemFormProps) {
   const lat = watch('latitude');
   const lng = watch('longitude');
 
-  const institutionsQuery = useInstitutions(session?.access_token ?? null, isConfigured && Boolean(session?.access_token));
+  const institutionsQuery = useInstitutions({});
   const [institutionQuery, setInstitutionQuery] = React.useState('');
 
-  const submission = useMutation({
-    mutationFn: async (values: SubmitFormValues) => {
-      if (!session?.access_token) throw new ApiError(401, null, 'Bejelentkezés szükséges');
-      return createProblem(
-        {
-          title: values.title,
-          description: values.description,
-          category: values.category,
-          institutionId: values.institutionId || null,
-          latitude: values.latitude,
-          longitude: values.longitude,
-        },
-        session.access_token,
-      );
-    },
-    onSuccess: (data) => {
-      toast.success('Bejelentésed rögzítettük.');
-      qc.invalidateQueries({ queryKey: ['problems'] });
-      router.push(`/problems/${data.id}`);
-    },
-    onError: (err) => {
-      if (err instanceof ApiError && err.status === 401) {
-        toast({
-          title: 'A bejelentéshez jelentkezz be.',
-          variant: 'warning',
-        });
-        return;
-      }
+  const submission = useCreateProblem();
+
+  const onSubmit = (values: SubmitFormValues) => {
+    if (USE_API && !isAuthenticated) {
       toast({
-        title: 'Nem sikerült elküldeni a bejelentést.',
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
+        title: 'A bejelentéshez jelentkezz be.',
+        variant: 'warning',
       });
-    },
-  });
+      router.push(`/login?next=${encodeURIComponent('/submit')}`);
+      return;
+    }
+    submission.mutate(
+      {
+        title: values.title,
+        description: values.description,
+        category: values.category,
+        institutionId: values.institutionId || null,
+        latitude: values.latitude,
+        longitude: values.longitude,
+      },
+      {
+        onSuccess: (data: { id: string }) => {
+          toast.success('Bejelentésed rögzítettük.');
+          router.push(`/problems/${data.id}`);
+        },
+        onError: (err: unknown) => {
+          if (err instanceof ApiError && err.status === 401) {
+            toast({
+              title: 'A bejelentéshez jelentkezz be.',
+              variant: 'warning',
+            });
+            router.push(`/login?next=${encodeURIComponent('/submit')}`);
+            return;
+          }
+          toast({
+            title: 'Nem sikerült elküldeni a bejelentést.',
+            description: err instanceof Error ? err.message : undefined,
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  };
 
   return (
     <form
       className="mx-auto flex w-full max-w-2xl flex-col gap-5 p-4"
-      onSubmit={handleSubmit((values) => submission.mutate(values))}
+      onSubmit={handleSubmit(onSubmit)}
       data-testid="submit-form"
     >
       <header className="space-y-1">
@@ -135,7 +135,7 @@ export function ProblemForm({ initialLocation }: ProblemFormProps) {
         </p>
       </header>
 
-      {!isConfigured ? (
+      {!SUPABASE_CONFIGURED ? (
         <div className="rounded-md border border-warning-200 bg-warning-50 p-3 text-sm text-warning-900">
           <strong>Demo mód:</strong> a Supabase nincs bekötve (hiányzik a <code>.env</code>). A submit gomb nem fog működni, de a validáció igen.
         </div>

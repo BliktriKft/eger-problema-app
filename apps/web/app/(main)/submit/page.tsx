@@ -1,4 +1,5 @@
 import { ProblemForm } from '@/components/problems/ProblemForm';
+import { AuthGate } from '@/lib/auth-gate';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +13,9 @@ export default function SubmitPage({ searchParams }: { searchParams?: { lat?: st
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] bg-muted-50">
-      <ProblemForm initialLocation={initialLocation} />
+      <AuthGate reason="Új bejelentés beküldéséhez be kell jelentkezned.">
+        <ProblemForm initialLocation={initialLocation} />
+      </AuthGate>
     </div>
   );
 }

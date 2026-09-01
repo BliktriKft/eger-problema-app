@@ -1,12 +1,18 @@
 import type { Institution, Problem, ProblemMarker, WikiEntry } from '@/types';
+import { ENV, USE_MOCK } from '../env';
+import { mockFetch } from './mock';
 
 /**
  * Thin typed wrapper around the NestJS backend (apps/api).
  *
- * Mirrors the pattern from apps/mobile/lib/api.ts — fetch instead of
- * axios, Bearer token from Supabase on every request, ApiError thrown
- * on non-2xx so TanStack Query's onError / retry logic sees a real
- * status code.
+ *  - Sends a Bearer token from Supabase on every request when one is given.
+ *  - Throws `ApiError` on non-2xx so TanStack Query's onError / retry logic
+ *    sees a real status code.
+ *  - When USE_MOCK is true (default in CI / no-API dev), it falls through
+ *    to an in-memory mock that mirrors the F2 demo dataset so the UI stays
+ *    demo-able even without the backend running.
+ *
+ * Mirrors the pattern from apps/mobile/lib/api.ts.
  */
 
 export class ApiError extends Error {
@@ -20,18 +26,23 @@ export class ApiError extends Error {
   }
 }
 
-interface ApiOptions {
+export interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   /** Query-string params; undefined values are skipped. */
   query?: Record<string, string | number | boolean | undefined>;
   signal?: AbortSignal;
-  /** Supabase access token; pass `null` to skip the Authorization header
-   *  (the server's `@Public()` decorator will then opt the endpoint out). */
+  /**
+   * Supabase access token; pass `null` to skip the Authorization header
+   * (the server's `@Public()` decorator will then opt the endpoint out).
+   */
   accessToken?: string | null;
+  /**
+   * Force the call through the in-memory mock dataset (skips the network).
+   * Defaults to the global USE_MOCK flag.
+   */
+  useMock?: boolean;
 }
-
-import { ENV } from './env';
 
 function buildUrl(path: string, query?: ApiOptions['query']): string {
   const url = new URL(ENV.apiBaseUrl + (path.startsWith('/') ? path : `/${path}`));
@@ -45,7 +56,12 @@ function buildUrl(path: string, query?: ApiOptions['query']): string {
 }
 
 export async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
-  const { method = 'GET', body, query, signal, accessToken } = opts;
+  const { method = 'GET', body, query, signal, accessToken, useMock } = opts;
+
+  const shouldMock = useMock ?? USE_MOCK;
+  if (shouldMock) {
+    return mockFetch<T>(path, { method, query, body });
+  }
 
   const headers: Record<string, string> = {
     Accept: 'application/json',
@@ -59,7 +75,7 @@ export async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
     body: body === undefined ? undefined : JSON.stringify(body),
     signal,
     // Next.js: don't cache authenticated/POST requests.
-    cache: method === 'GET' ? 'no-store' : 'no-store',
+    cache: 'no-store',
   });
 
   const text = await res.text();
@@ -152,3 +168,5 @@ export async function getWiki(problemId: string, accessToken?: string | null): P
     throw err;
   }
 }
+
+export type { Institution, Problem, ProblemMarker, WikiEntry };

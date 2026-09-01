@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { ENV, SUPABASE_CONFIGURED } from '../env';
+import { ENV, SUPABASE_CONFIGURED, USE_API } from '../env';
 
 /**
  * Middleware-time Supabase client — keeps the auth cookie fresh on every
@@ -9,10 +9,13 @@ import { ENV, SUPABASE_CONFIGURED } from '../env';
  *
  * Reference: https://supabase.com/docs/guides/auth/server-side/nextjs
  */
+
+// Routes that REQUIRE an authenticated session in real-API mode.
+// In mock mode (USE_API=false) these stay open so the F2 demo and
+// the QA offline test path can still exercise them.
+const AUTH_GATED_PATHS = ['/submit', '/profile'];
+
 export async function updateSupabaseSession(request: NextRequest): Promise<NextResponse> {
-  // Always pass through — middleware never blocks.  The auth-gated routes
-  // do their own checks inside the page/route handler so they can show a
-  // proper redirect instead of a bare 401.
   const response = NextResponse.next({ request: { headers: request.headers } });
 
   if (!SUPABASE_CONFIGURED) {
@@ -39,9 +42,22 @@ export async function updateSupabaseSession(request: NextRequest): Promise<NextR
     },
   );
 
-  // Touching getUser() here refreshes the cookie if it's about to expire
-  // — see the @supabase/ssr guidance above.
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Server-side backup for the client AuthGate.  In real-API mode an
+  // anonymous visitor hitting /submit or /profile gets bounced to
+  // /login?next=… so they land back on the same route after auth.
+  if (USE_API && !user) {
+    const { pathname } = request.nextUrl;
+    if (AUTH_GATED_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      url.searchParams.set('next', pathname);
+      return NextResponse.redirect(url);
+    }
+  }
 
   return response;
 }
