@@ -17,16 +17,15 @@ echo
 read -rp "Google OAuth Client ID (web): " GOOGLE_OAUTH_WEB_ID
 read -rsp "Google OAuth Client Secret: " GOOGLE_OAUTH_CLIENT_SECRET
 echo
-read -rsp "Google News API key: " GOOGLE_NEWS_API_KEY
-echo
 read -rp "Google OAuth Client ID (iOS) — hagyd üresen ha kihagyod: " GOOGLE_OAUTH_IOS_ID
 read -rp "Google OAuth Client ID (Android) — hagyd üresen ha kihagyod: " GOOGLE_OAUTH_ANDROID_ID
 echo
 echo ""
 
 # --- 2. Validáció: minden kötelező token jelen van-e ---
+# A GOOGLE_NEWS_API_KEY most kimarad (V2 fázisban kötjük be, amikor a wiki modul élesbe megy).
 if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] || [ -z "$SUPABASE_ANON_KEY" ] || \
-   [ -z "$GOOGLE_OAUTH_WEB_ID" ] || [ -z "$GOOGLE_OAUTH_CLIENT_SECRET" ] || [ -z "$GOOGLE_NEWS_API_KEY" ]; then
+   [ -z "$GOOGLE_OAUTH_WEB_ID" ] || [ -z "$GOOGLE_OAUTH_CLIENT_SECRET" ]; then
   echo "HIBA: kötelező token hiányzik. Kilépek." >&2
   exit 1
 fi
@@ -48,7 +47,7 @@ SUPABASE_URL=$SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY
 SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
 GOOGLE_OAUTH_CLIENT_SECRET=$GOOGLE_OAUTH_CLIENT_SECRET
-GOOGLE_NEWS_API_KEY=$GOOGLE_NEWS_API_KEY
+# GOOGLE_NEWS_API_KEY kimarad (V2 fázisban kötjük be)
 EOF
 chown bliktri:bliktri "$API_ENV"
 chmod 600 "$API_ENV"
@@ -92,7 +91,7 @@ chmod 600 "$AI_ENV"
 cat >> "$AI_ENV" <<EOF
 SUPABASE_URL=$SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY
-GOOGLE_NEWS_API_KEY=$GOOGLE_NEWS_API_KEY
+# GOOGLE_NEWS_API_KEY kimarad (V2 fázisban kötjük be)
 EOF
 chown bliktri:bliktri "$AI_ENV"
 chmod 600 "$AI_ENV"
