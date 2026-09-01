@@ -1,0 +1,21 @@
+{
+  "name": "@eger/design",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Design tokens, Figma library, component specs, and map pin SVGs for the Eger Város Probléma Térkép. Source of truth — never edit generated outputs in apps/web or apps/mobile directly; run `pnpm --filter @eger/design export:tokens` instead.",
+  "type": "module",
+  "main": "./tokens/index.json",
+  "scripts": {
+    "tokens:validate": "node --experimental-strip-types scripts/validate-tokens.ts",
+    "tokens:build": "node --experimental-strip-types scripts/build-index.ts",
+    "export:tokens": "node --experimental-strip-types scripts/export-tokens.ts",
+    "figma:export": "node --experimental-strip-types scripts/figma-export.ts",
+    "contrast:audit": "node --experimental-strip-types scripts/contrast-audit.ts",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tailwindcss": "^3",
+    "typescript": "^5.5.0"
+  }
+}

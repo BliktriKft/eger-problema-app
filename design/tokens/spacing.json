@@ -1,0 +1,18 @@
+{
+  "$schema": "./schema.json",
+  "spacing": {
+    "0":  { "value": "0px",    "type": "dimension", "description": "reset." },
+    "1":  { "value": "4px",    "type": "dimension", "description": "tightest gap, icon offset." },
+    "2":  { "value": "8px",    "type": "dimension", "description": "default gap between siblings." },
+    "3":  { "value": "12px",   "type": "dimension", "description": "inline padding." },
+    "4":  { "value": "16px",   "type": "dimension", "description": "card padding, button padding-x." },
+    "6":  { "value": "24px",   "type": "dimension", "description": "section gap, dialog padding." },
+    "8":  { "value": "32px",   "type": "dimension", "description": "page padding-x." },
+    "12": { "value": "48px",   "type": "dimension", "description": "section margin-y." },
+    "16": { "value": "64px",   "type": "dimension", "description": "hero vertical rhythm." },
+    "24": { "value": "96px",   "type": "dimension", "description": "between major page sections." },
+    "32": { "value": "128px",  "type": "dimension", "description": "landing hero block." },
+    "48": { "value": "192px",  "type": "dimension", "description": "marketing only — not used in app." },
+    "64": { "value": "256px",  "type": "dimension", "description": "max layout width." }
+  }
+}

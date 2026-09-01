@@ -1,0 +1,23 @@
+{
+  "$schema": "./schema.json",
+  "ease": {
+    "linear":      { "value": "linear",                        "type": "cubicBezier", "description": "no easing — never use for UI motion." },
+    "in":          { "value": "cubic-bezier(0.4, 0, 1, 1)",    "type": "cubicBezier", "description": "ease-in — elements leaving the screen." },
+    "out":         { "value": "cubic-bezier(0, 0, 0.2, 1)",    "type": "cubicBezier", "description": "ease-out — DEFAULT for elements entering or interactive feedback." },
+    "inOut":       { "value": "cubic-bezier(0.4, 0, 0.2, 1)",  "type": "cubicBezier", "description": "ease-in-out — symmetric transitions (tab switch, route change)." },
+    "outBack":     { "value": "cubic-bezier(0.34, 1.56, 0.64, 1)", "type": "cubicBezier", "description": "overshoot — upvote score bump animation." }
+  },
+  "duration": {
+    "instant": { "value": "0ms",   "type": "duration", "description": "no animation — reset." },
+    "fast":    { "value": "150ms", "type": "duration", "description": "hover, focus, active feedback." },
+    "normal":  { "value": "250ms", "type": "duration", "description": "DEFAULT for state changes, button press." },
+    "slow":    { "value": "400ms", "type": "duration", "description": "dialogs, sheets, route transitions." },
+    "slower":  { "value": "600ms", "type": "duration", "description": "long fades, AI-wiki reveal." }
+  },
+  "keyframes": {
+    "vote-bump": { "value": "scale 1 → 1.18 → 1; duration 250ms; ease-out-back", "type": "description", "description": "+1 upvote score pulse." },
+    "shimmer":   { "value": "background-position 0% → 100%; duration 1500ms; ease-in-out; infinite", "type": "description", "description": "skeleton loading shimmer." },
+    "fade-in":   { "value": "opacity 0 → 1; translateY 8px → 0; duration 250ms; ease-out", "type": "description", "description": "list item entry." },
+    "pulse-ring":{ "value": "scale 1 → 1.4, opacity 0.6 → 0; duration 1200ms; ease-out; infinite", "type": "description", "description": "moderation halo on pins." }
+  }
+}

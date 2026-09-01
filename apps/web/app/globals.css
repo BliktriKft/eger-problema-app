@@ -1,0 +1,159 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* shadcn/ui baseline — keep these names; component recipes (Card, Dialog…)
+       in apps/web/components/ui/*.tsx reference them via Tailwind's bg-background,
+       text-foreground, border-border utilities. */
+/* === AUTO-GEN:DESIGN_TOKENS — HSL CSS variables (shadcn/ui baseline) === */
+    /* === LIGHT MODE — HSL channels, shadcn convention === */
+    --primary-50: 350 92% 95%;
+    --primary-100: 350 90% 88%;
+    --primary-200: 350 90% 77%;
+    --primary-300: 350 87% 65%;
+    --primary-400: 349 84% 53%;
+    --primary-500: 350 85% 42%;
+    --primary-600: 350 85% 35%;
+    --primary-700: 350 87% 28%;
+    --primary-800: 350 89% 21%;
+    --primary-900: 349 91% 13%;
+    --primary: 350 85% 42%;
+    --primary-fg: 0 0% 100%;
+    --secondary-50: 226 62% 96%;
+    --secondary-100: 225 59% 89%;
+    --secondary-200: 225 59% 79%;
+    --secondary-300: 225 59% 68%;
+    --secondary-400: 225 59% 58%;
+    --secondary-500: 224 64% 33%;
+    --secondary-600: 224 65% 26%;
+    --secondary-700: 223 66% 19%;
+    --secondary-800: 224 67% 13%;
+    --secondary-900: 223 64% 6%;
+    --secondary: 224 64% 33%;
+    --secondary-fg: 0 0% 100%;
+    --muted-50: 210 20% 98%;
+    --muted-100: 220 14% 96%;
+    --muted-200: 220 13% 91%;
+    --muted-300: 216 12% 84%;
+    --muted-400: 218 11% 65%;
+    --muted-500: 220 9% 46%;
+    --muted-600: 215 14% 34%;
+    --muted-700: 217 19% 27%;
+    --muted-800: 215 28% 17%;
+    --muted-900: 221 39% 11%;
+    --muted: 220 14% 96%;
+    --muted-fg: 221 39% 11%;
+    --accent-50: 48 96% 89%;
+    --accent-100: 48 97% 77%;
+    --accent-200: 46 97% 65%;
+    --accent-300: 43 96% 56%;
+    --accent-400: 38 92% 50%;
+    --accent-500: 32 95% 44%;
+    --accent-600: 26 90% 37%;
+    --accent-700: 23 83% 31%;
+    --accent-800: 22 78% 26%;
+    --accent-900: 21 92% 14%;
+    --accent: 38 92% 50%;
+    --accent-fg: 215 28% 17%;
+    --destructive-50: 0 93% 94%;
+    --destructive-100: 0 96% 89%;
+    --destructive-200: 0 94% 82%;
+    --destructive-300: 0 91% 71%;
+    --destructive-400: 0 84% 60%;
+    --destructive-500: 0 72% 51%;
+    --destructive-600: 0 74% 42%;
+    --destructive-700: 0 70% 35%;
+    --destructive-800: 0 63% 31%;
+    --destructive-900: 0 75% 15%;
+    --destructive: 0 72% 51%;
+    --destructive-fg: 0 0% 100%;
+    --success-50: 149 80% 90%;
+    --success-100: 152 76% 80%;
+    --success-200: 156 72% 67%;
+    --success-300: 158 64% 52%;
+    --success-400: 160 84% 39%;
+    --success-500: 161 94% 30%;
+    --success-600: 163 94% 24%;
+    --success-700: 163 88% 20%;
+    --success-800: 164 86% 16%;
+    --success-900: 166 91% 9%;
+    --success: 161 94% 30%;
+    --success-fg: 0 0% 100%;
+    --warning-50: 48 96% 89%;
+    --warning-100: 48 97% 77%;
+    --warning-200: 46 97% 65%;
+    --warning-300: 43 96% 56%;
+    --warning-400: 38 92% 50%;
+    --warning-500: 32 95% 44%;
+    --warning-600: 26 90% 37%;
+    --warning-700: 23 83% 31%;
+    --warning-800: 22 78% 26%;
+    --warning-900: 21 92% 14%;
+    --warning: 32 95% 44%;
+    --warning-fg: 0 0% 100%;
+    --background: 0 0% 100%;
+    --background-fg: 221 39% 11%;
+    --border: 220 13% 91%;
+    --border-fg: 221 39% 11%;
+    --input: 220 13% 91%;
+    --input-fg: 221 39% 11%;
+    --ring: 224 64% 33%;
+    --ring-fg: 0 0% 100%;
+
+    /* shadcn/ui alias names — composed from the raw tokens above.
+       Component recipes reference them via bg-background, text-foreground, etc. */
+    --foreground:           var(--muted-900);
+    --card:                 var(--background);
+    --card-foreground:      var(--muted-900);
+    --popover:              var(--background);
+    --popover-foreground:   var(--muted-900);
+    --primary-foreground:   var(--primary-fg);
+    --secondary-foreground: var(--secondary-fg);
+    --muted-foreground:     var(--muted-500);
+    --accent-foreground:    var(--accent-fg);
+    --destructive-foreground: var(--destructive-fg);
+    --success-foreground:   var(--success-fg);
+    --warning-foreground:   var(--warning-fg);
+    --radius:               0.5rem;
+  }
+
+  .dark {
+    /* shadcn/ui dark-mode override — only the alias names that components reference. */
+    --foreground:           var(--muted-50);
+    --card:                 var(--muted-800);
+    --card-foreground:      var(--muted-50);
+    --popover:              var(--muted-800);
+    --popover-foreground:   var(--muted-50);
+    --primary:              var(--primary-400);
+    --primary-foreground:   var(--muted-900);
+    --secondary:            var(--secondary-400);
+    --secondary-foreground: var(--muted-50);
+    --muted:                var(--muted-800);
+    --muted-foreground:     var(--muted-300);
+    --accent:               var(--accent-300);
+    --accent-foreground:    var(--muted-900);
+    --destructive:          var(--destructive-400);
+    --destructive-foreground: var(--muted-50);
+    --success:              var(--success-400);
+    --success-foreground:   var(--muted-50);
+    --warning:              var(--warning-300);
+    --warning-foreground:   var(--muted-900);
+    --border:               var(--muted-700);
+    --input:                var(--muted-700);
+    --ring:                 var(--secondary-400);
+  }
+
+/* === END AUTO-GEN:DESIGN_TOKENS === */
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: theme('fontFamily.sans');
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
