@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://egerproblem.app/schemas/design-token.schema.json",
+  "title": "Eger Probléma App — Design Token",
+  "description": "W3C Design Tokens Community Group format, single-token entry. The /tokens/*.json files are dictionaries keyed by group name (color, spacing, radius, ...) where each leaf is a single token entry.",
+  "type": "object",
+  "additionalProperties": { "$ref": "#/definitions/group" },
+  "definitions": {
+    "group": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/token" }
+    },
+    "token": {
+      "type": "object",
+      "required": ["value"],
+      "properties": {
+        "value": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "number" }
+          ],
+          "description": "Resolved value of the token."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "color", "dimension", "fontFamily", "fontWeight", "lineHeight",
+            "duration", "cubicBezier", "shadow", "number", "string",
+            "description", "boolean"
+          ],
+          "description": "W3C Design Tokens Community Group type."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable usage hint."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

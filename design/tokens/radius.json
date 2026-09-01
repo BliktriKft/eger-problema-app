@@ -1,0 +1,11 @@
+{
+  "$schema": "./schema.json",
+  "radius": {
+    "none": { "value": "0px",    "type": "dimension", "description": "square." },
+    "sm":   { "value": "4px",    "type": "dimension", "description": "small chips, checkboxes." },
+    "md":   { "value": "8px",    "type": "dimension", "description": "DEFAULT for cards, buttons, inputs." },
+    "lg":   { "value": "12px",   "type": "dimension", "description": "dialogs, sheets, large cards." },
+    "xl":   { "value": "16px",   "type": "dimension", "description": "marketing hero panels." },
+    "full": { "value": "9999px", "type": "dimension", "description": "vote buttons, avatar circles, badges." }
+  }
+}

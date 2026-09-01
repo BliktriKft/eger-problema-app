@@ -1,0 +1,50 @@
+{
+  "$schema": "./schema.json",
+  "fontFamily": {
+    "sans": {
+      "value": ["Inter", "Inter Variable", "system-ui", "-apple-system", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
+      "type": "fontFamily",
+      "description": "UI sans-serif — Inter (variable, latin + latin-ext)."
+    },
+    "serif": {
+      "value": ["\"Source Serif 4\"", "\"Source Serif Pro\"", "Georgia", "Cambria", "Times New Roman", "serif"],
+      "type": "fontFamily",
+      "description": "Long-form body — Source Serif 4 for AI-wiki prose."
+    },
+    "mono": {
+      "value": ["\"JetBrains Mono\"", "Menlo", "Monaco", "Consolas", "Liberation Mono", "monospace"],
+      "type": "fontFamily",
+      "description": "Code, IDs, hash fingerprints."
+    }
+  },
+  "fontSize": {
+    "xs":   { "value": "0.75rem",   "type": "dimension", "description": "12px — badges, micro labels." },
+    "sm":   { "value": "0.875rem",  "type": "dimension", "description": "14px — helper text, metadata." },
+    "base": { "value": "1rem",      "type": "dimension", "description": "16px — body default." },
+    "lg":   { "value": "1.125rem",  "type": "dimension", "description": "18px — lead paragraphs, list rows." },
+    "xl":   { "value": "1.25rem",   "type": "dimension", "description": "20px — section titles in cards." },
+    "2xl":  { "value": "1.5rem",    "type": "dimension", "description": "24px — h3, problem titles." },
+    "3xl":  { "value": "1.875rem",  "type": "dimension", "description": "30px — h2, page titles on mobile." },
+    "4xl":  { "value": "2.25rem",   "type": "dimension", "description": "36px — h1 on mobile." },
+    "5xl":  { "value": "3rem",      "type": "dimension", "description": "48px — h1 web hero." },
+    "6xl":  { "value": "3.75rem",   "type": "dimension", "description": "60px — landing hero." }
+  },
+  "fontWeight": {
+    "regular":  { "value": "400", "type": "fontWeight", "description": "body text." },
+    "medium":   { "value": "500", "type": "fontWeight", "description": "labels, button text." },
+    "semibold": { "value": "600", "type": "fontWeight", "description": "headings, emphasis." },
+    "bold":     { "value": "700", "type": "fontWeight", "description": "strong headings, scores." }
+  },
+  "lineHeight": {
+    "tight":   { "value": "1.25",  "type": "lineHeight", "description": "headings." },
+    "snug":    { "value": "1.375", "type": "lineHeight", "description": "subheadings." },
+    "normal":  { "value": "1.5",   "type": "lineHeight", "description": "body default." },
+    "relaxed": { "value": "1.625", "type": "lineHeight", "description": "wiki long-form (serif)." },
+    "loose":   { "value": "1.75",  "type": "lineHeight", "description": "very long wiki sections." }
+  },
+  "letterSpacing": {
+    "tight":   { "value": "-0.025em", "type": "dimension", "description": "large headings." },
+    "normal":  { "value": "0em",       "type": "dimension", "description": "default." },
+    "wide":    { "value": "0.025em",   "type": "dimension", "description": "uppercase labels." }
+  }
+}

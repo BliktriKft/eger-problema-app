@@ -1,0 +1,50 @@
+FIGMA FILE — PENDING MANUAL CREATION
+
+Status: not yet created. The website-designer profile does not currently have a
+Figma Personal Access Token provisioned (FIGMA_PERSONAL_ACCESS_TOKEN is empty
+in ~/.hermes/profiles/website-designer/.env). The Figma REST API requires an
+authenticated write-capable token to create files; without it, the file cannot
+be bootstrapped from this session.
+
+URL: <https://www.figma.com/files/team/...?node-id=> (TBD — see bootstrap steps below)
+
+HOW TO BOOTSTRAP
+
+Once a token with file-write scope is available, do the following:
+
+1. Get a Personal Access Token from Figma → Settings → Personal access tokens.
+   Required scopes: File content (read + write).
+
+2. Add it to ~/.hermes/profiles/website-designer/.env:
+       FIGMA_PERSONAL_ACCESS_TOKEN=figd_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+       FIGMA_FILE_KEY=        # leave empty until file is created
+
+3. From /home/bliktri/workspaces/eger-problema-app:
+       pnpm --filter @eger/design figma:export
+
+   The bootstrap script will:
+   - POST to https://api.figma.com/v1/files (or use the team endpoint
+     https://api.figma.com/v1/teams/<TEAM_ID>/files) to create a new file
+     in the BliktriKft workspace.
+   - Capture the file key from the response and write it to FIGMA_FILE_KEY.
+   - Create the 13 required pages (Cover, Tokens, Components, 7 Web screens,
+     4 Mobile screens, Accessibility audit, Empty/Loading/Error states).
+   - Save the public file URL to design/figma-url.txt.
+
+4. Re-run the export script to sync design tokens to the Figma variables panel:
+       pnpm --filter @eger/design figma:export
+
+PAGES TO CREATE (REQUIRED BY ACCEPTANCE CRITERIA)
+
+The 13 pages must exist for the MVP. Until Figma is provisioned, the wireframes
+live in design/components/*.md as Markdown specs that engineers can implement
+directly. See design/figma-spec.md for the full per-page content spec.
+
+ACCEPTANCE CRITERIA STATUS
+
+[x] Design tokens JSON files                  design/tokens/*.json
+[x] Tailwind config + globals.css HSL vars    apps/web/{tailwind.config.ts,app/globals.css}
+[x] 9 component Markdown specs                design/components/*.md
+[x] Map pin SVG icons                         design/map/*.svg
+[x] export-tokens.ts script                   design/scripts/export-tokens.ts
+[ ] Figma file created                        BLOCKED — awaiting PAT
