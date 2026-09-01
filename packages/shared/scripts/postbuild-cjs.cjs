@@ -47,13 +47,27 @@ walk(root, (p) => {
 
 // Rewrite imports inside .cjs and .d.cts files — both single + double
 // quoted, both relative ./ and ../ prefixes, and both require(...) + from "...".
+//
+// The path we want to rewrite looks like:   "./constants/index.js"
+//                                           "../schemas/foo.js"
+// Capture only the trailing slash + segment + ".js" portion; replace ".js"
+// with ".cjs". Using a non-greedy [^"']+? capture.
 const patterns = [
-  // require("./foo.js") and require("../foo.js")
-  [/require\(("|\')\.(\.[\/\\][^"']+?)\.js\1/g, 'require($1$2.cjs$1'],
+  // require("./foo.js")  and  require("../foo.js")
+  [
+    /require\(("|')([^"']+?)\.js\1\)/g,
+    (_m, q, p) => `require(${q}${p}.cjs${q})`,
+  ],
   // from "./foo.js"  and  from "../foo.js"
-  [/from ("|\')\.(\.[\/\\][^"']+?)\.js\1/g, 'from $1$2.cjs$1'],
+  [
+    /\bfrom ("|')([^"']+?)\.js\1/g,
+    (_m, q, p) => `from ${q}${p}.cjs${q}`,
+  ],
   // Type references in .d.cts files
-  [/("|\')\.(\.[\/\\][^"']+?)\.d\.ts\1/g, '$1$2.d.cts$1'],
+  [
+    /("|')([^"']+?)\.d\.ts\1/g,
+    (_m, q, p) => `${q}${p}.d.cts${q}`,
+  ],
 ];
 let rewritten = 0;
 walk(root, (p) => {
