@@ -1,0 +1,3 @@
+# Migration lock — Prisma uses this to serialize concurrent migrators.
+# Do not edit; Prisma manages it automatically.
+provider = "postgresql"

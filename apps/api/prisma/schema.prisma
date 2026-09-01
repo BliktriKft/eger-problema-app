@@ -1,0 +1,198 @@
+// Eger Város Probléma Térkép — Prisma schema
+//
+// Conventions
+// -----------
+// * Postgres + PostGIS on Supabase. The PostGIS `geography(Point, 4326)`
+//   column is declared as `Unsupported(...)` because Prisma's typegen
+//   has no native geo type. We populate it with raw SQL in the init
+//   migration (`migrations/0001_init/migration.sql`).
+// * UUIDs are stored as `uuid` and generated client-side via `gen_random_uuid()`
+//   (requires `pgcrypto`, enabled on Supabase by default).
+// * Enum-like Postgres enums live in the `public` schema. They are
+//   mirrored 1:1 by string-literal unions in `packages/shared/src/constants/categories.ts`.
+// * Indexes/constraints that Prisma cannot express (GIST, RLS, CHECK,
+//   triggers) live in `migrations/0001_init/migration.sql` and any
+//   subsequent migrations.
+//
+// See docs/decisions/0004-postgis-schema-rls.md for the rationale.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  extensions = [postgis, pgcrypto]
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum ProblemCategory {
+  infrastructure
+  public_safety
+  environment
+  institution
+  transport
+  other
+}
+
+enum ProblemStatus {
+  open
+  investigating
+  resolved
+  closed
+}
+
+enum InstitutionType {
+  school
+  hospital
+  pool
+  library
+  government
+  other
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+/// Mirror of `auth.users` from Supabase. We keep a row here for every
+/// authenticated user so that Prisma can model foreign keys without
+/// hitting `auth.users` directly. Populated by a trigger in the init
+/// migration (`on_auth_user_created`).
+model User {
+  id          String   @id @db.Uuid
+  email       String   @unique @db.VarChar(320)
+  name        String?  @db.VarChar(120)
+  avatarUrl   String?  @map("avatar_url") @db.VarChar(500)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  problems    Problem[]
+  votes       Vote[]
+
+  @@map("users")
+}
+
+/// A civic-level report (pothole, broken streetlight, etc.) submitted by
+/// a user. Geo-located via a PostGIS `geography(Point, 4326)` column.
+///
+/// IMPORTANT: the `location` field is intentionally declared as
+/// `Unsupported(...)` because Prisma cannot typegen it. The init
+/// migration creates the column and a GIST index on it. Reads/writes go
+/// through `ST_X`, `ST_Y`, `ST_SetSRID(ST_MakePoint(...), 4326)`.
+model Problem {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title        String         @db.VarChar(200)
+  description  String         @db.Text
+  /// PostGIS geography(Point, 4326). Populated via raw SQL.
+  location     Unsupported("geography(Point, 4326)")
+  /// Cached latitude, kept in sync with `location` by the API layer.
+  /// Useful for ordering / range queries that do not need geo distance.
+  latitude     Float          @db.DoublePrecision
+  longitude    Float          @db.DoublePrecision
+  category     ProblemCategory
+  status       ProblemStatus  @default(open)
+  /// Optional FK to an Institution. Null = civic-level report.
+  institutionId String?       @map("institution_id") @db.Uuid
+  createdBy    String         @map("created_by") @db.Uuid
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// Aggregated upvote - downvote. Maintained by the voting service via
+  /// UPSERT on `votes`. A trigger is set up in the init migration to
+  /// keep this consistent as a backstop.
+  score        Int            @default(0)
+
+  institution  Institution?  @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  creator      User          @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  votes        Vote[]
+  wikiEntry    WikiEntry?
+  links        ProblemInstitutionLink[]
+
+  @@index([category])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@index([score(sort: Desc)])
+  @@map("problems")
+}
+
+/// A public institution in Eger (school, hospital, pool, etc.).
+/// Read-only to regular users; admin-only writes.
+model Institution {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String          @db.VarChar(200)
+  type        InstitutionType
+  address     String          @db.VarChar(300)
+  latitude    Float           @db.DoublePrecision
+  longitude   Float           @db.DoublePrecision
+  officialUrl String?         @map("official_url") @db.VarChar(500)
+
+  problems    Problem[]
+  links       ProblemInstitutionLink[]
+
+  @@index([type])
+  @@index([name])
+  @@map("institutions")
+}
+
+/// Many-to-many bridge for problems that touch multiple institutions.
+/// The MVP keeps a single `institutionId` on Problem as the primary
+/// link, but the bridge is in place for V2 (e.g. "this road work blocks
+/// the bus to school X and the hospital Y").
+model ProblemInstitutionLink {
+  problemId     String     @map("problem_id") @db.Uuid
+  institutionId String     @map("institution_id") @db.Uuid
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  problem     Problem     @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@id([problemId, institutionId])
+  @@index([institutionId])
+  @@map("problem_institution_links")
+}
+
+/// A user's vote on a Problem. Unique on `(problemId, userId)` so a user
+/// can only have one vote per problem (re-voting replaces the value via
+/// UPSERT in the voting service).
+model Vote {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  problemId String   @map("problem_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  /// +1 (upvote) or -1 (downvote). Enforced by CHECK constraint in the
+  /// init migration.
+  value     Int
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([problemId, userId])
+  @@index([userId])
+  @@map("votes")
+}
+
+/// AI-generated wiki entry for a Problem. There is at most one
+/// `WikiEntry` per `Problem` (UNIQUE constraint on `problemId`).
+/// Generated by the `website-ai` worker; only the service_role can
+/// INSERT/UPDATE/DELETE (see init migration RLS policies).
+model WikiEntry {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  problemId    String   @unique @map("problem_id") @db.Uuid
+  title        String   @db.VarChar(200)
+  /// Markdown body. CHECK constraint enforces ≤1500 characters.
+  body         String   @db.Text
+  /// JSON array of `{ url, title, fetchedAt }`. Default `[]`.
+  sources      Json     @default("[]") @db.JsonB
+  generatedAt  DateTime @default(now()) @map("generated_at") @db.Timestamptz(6)
+  /// Identifier of the model/prompt that produced the entry.
+  /// Format: `<model-name>@<prompt-version>` (e.g. `claude-haiku-4-5-20251001@v1`).
+  modelVersion String   @map("model_version") @db.VarChar(100)
+
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@map("wiki_entries")
+}

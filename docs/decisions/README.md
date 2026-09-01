@@ -19,6 +19,8 @@ Minden ADR a [MADR](https://adr.github.io/madr/) 4.0 formátumot követi: `NNNN-
 |---|---|---|
 | [0001](0001-stack-valasztas.md) | Stack választás (NestJS + Supabase + Next.js + React Native + OSMap) | accepted |
 | [0002](0002-monorepo-tooling.md) | Monorepo tooling (pnpm + Turborepo) | accepted |
+| [0003](0003-auth-flow.md) | Auth flow (Supabase Auth + JWT + NestJS guard) | accepted |
+| [0004](0004-postgis-schema-rls.md) | PostGIS schema + Row Level Security | accepted |
 
 ## Hogyan írj új ADR-t
 

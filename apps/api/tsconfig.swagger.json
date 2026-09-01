@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "baseUrl": "./src",
+    "paths": {
+      "@eger/shared": ["../../../packages/shared/dist-cjs/index.d.ts"],
+      "@eger/shared/*": ["../../../packages/shared/dist-cjs/*"]
+    }
+  },
+  "include": ["src/swagger.ts"],
+  "exclude": ["node_modules", "dist", "test", "../../packages"]
+}
