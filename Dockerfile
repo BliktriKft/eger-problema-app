@@ -7,21 +7,20 @@
 #   Stage 1 (builder): install everything, build the shared package,
 #                       build the api, then run `pnpm deploy --prod /deploy`
 #                       to flatten node_modules into a self-contained
-#                       directory. The /deploy dir ends up containing:
-#                         - apps/api/package.json
-#                         - apps/api/dist/main.js, dist/app.module.js, ...
-#                         - apps/api/node_modules (flat, prod-only)
-#                         - packages/shared/dist
-#   Stage 2 (runner):  copy /deploy from builder, WORKDIR into
-#                       /deploy/apps/api (where the dist/ lives), run
-#                       node dist/main.js.
+#                       directory.
+#   Stage 2 (runner):  copy /deploy from builder, WORKDIR /deploy,
+#                       and run node dist/main.js (the dist/ is the api
+#                       dist laid out by pnpm deploy).
+#
+# Use ENTRYPOINT + CMD explicitly so Railway's override of CMD does not
+# break the relative path resolution against WORKDIR. We previously saw
+# the container crash with 'Cannot find module /app/dist/main.js'
+# because the platform was forcing the path even after we updated the
+# WORKDIR to /deploy. Splitting ENTRYPOINT and CMD makes the intent
+# unambiguous.
 
-# Bumped 2026-09-02 to invalidate Railway's stale build cache. The
-# container kept failing because the runner stage was inherited from
-# a much older layer that expected /app/dist/main.js, while the
-# current Dockerfile writes everything to /deploy. Railway caches the
-# layer by content hash; bumping this ARG forces a fresh build.
-ARG CACHE_BUST=2026-09-02
+# Bumped 2026-09-02 to invalidate Railway's stale build cache.
+ARG CACHE_BUST=2026-09-02-r2
 
 # ---- Stage 1: deps + builds + pnpm deploy ----
 FROM node:20-bookworm-slim AS builder
@@ -44,8 +43,7 @@ COPY apps/api/ apps/api/
 RUN pnpm --filter @eger/shared build
 RUN pnpm --filter @eger/api build
 
-# Flatten the api workspace into /deploy so the runtime image
-# does not depend on pnpm symlinks. --prod strips devDeps.
+# Flatten the api workspace into /deploy.
 RUN pnpm --filter @eger/api deploy --prod /deploy
 
 # ---- Stage 2: production-only runtime ----
@@ -56,15 +54,14 @@ ENV PORT=8000
 
 RUN corepack enable
 
-# pnpm deploy lays out apps/api/* at /deploy, including:
-#   /deploy/dist/main.js
-#   /deploy/dist/app.module.js
-#   /deploy/node_modules/@nestjs/core (real file, no symlinks)
-#   /deploy/node_modules/.pnpm (resolved)
-#   /deploy/package.json
-#   /deploy/node_modules/... (every prod dep)
+# pnpm deploy lays everything out at /deploy.
 COPY --from=builder /deploy /deploy
 
 WORKDIR /deploy
 EXPOSE 8000
-CMD ["node", "dist/main.js"]
+
+# ENTRYPOINT explicitly invokes node, CMD provides the script.
+# This way, even if Railway overrides CMD with a flag, the WORKDIR
+# resolution and entry point are locked in by the Dockerfile.
+ENTRYPOINT ["node"]
+CMD ["dist/main.js"]
