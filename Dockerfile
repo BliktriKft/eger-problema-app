@@ -5,24 +5,20 @@
 #
 # Strategy:
 #   Stage 1 (builder): install everything, build the shared package,
-#                       build the api, then run `pnpm deploy --prod /deploy`
-#                       to flatten node_modules into a self-contained
-#                       directory.
+#                       build the api (creates apps/api/dist/), then
+#                       run `pnpm deploy --prod /deploy` to flatten
+#                       node_modules into /deploy. pnpm deploy only
+#                       copies package.json + src/, NOT the compiled
+#                       dist/, so we manually `cp -r apps/api/dist
+#                       /deploy/dist` after the deploy step.
 #   Stage 2 (runner):  copy /deploy from builder, WORKDIR /deploy,
-#                       and run node dist/main.js (the dist/ is the api
-#                       dist laid out by pnpm deploy).
-#
-# Use ENTRYPOINT + CMD explicitly so Railway's override of CMD does not
-# break the relative path resolution against WORKDIR. We previously saw
-# the container crash with 'Cannot find module /app/dist/main.js'
-# because the platform was forcing the path even after we updated the
-# WORKDIR to /deploy. Splitting ENTRYPOINT and CMD makes the intent
-# unambiguous.
+#                       and run `node dist/main.js` (the dist/ we
+#                       manually copied in).
 
 # Bumped 2026-09-02 to invalidate Railway's stale build cache.
-ARG CACHE_BUST=2026-09-02-r2
+ARG CACHE_BUST=2026-09-02-r3
 
-# ---- Stage 1: deps + builds + pnpm deploy ----
+# ---- Stage 1: deps + builds + pnpm deploy ---- ----
 FROM node:20-bookworm-slim AS builder
 ARG CACHE_BUST
 WORKDIR /repo
@@ -37,14 +33,18 @@ COPY apps/api/package.json apps/api/
 # Install everything (devDeps included) so we can build.
 RUN pnpm install --frozen-lockfile=false
 
-# Now copy the actual source code and run the builds.
+# Copy the source and build the api (creates apps/api/dist/).
 COPY packages/shared/ packages/shared/
 COPY apps/api/ apps/api/
 RUN pnpm --filter @eger/shared build
 RUN pnpm --filter @eger/api build
 
-# Flatten the api workspace into /deploy.
+# Flatten node_modules into /deploy via pnpm deploy.
+# Then manually copy the compiled dist/ into /deploy, because
+# pnpm deploy's file manifest does not include compiled output
+# (it copies only src/ + package.json from the workspace package).
 RUN pnpm --filter @eger/api deploy --prod /deploy
+RUN cp -r /repo/apps/api/dist /deploy/dist
 
 # ---- Stage 2: production-only runtime ----
 FROM node:20-bookworm-slim AS runner
@@ -54,14 +54,14 @@ ENV PORT=8000
 
 RUN corepack enable
 
-# pnpm deploy lays everything out at /deploy.
+# pnpm deploy laid out the runtime tree at /deploy:
+#   /deploy/package.json
+#   /deploy/dist/main.js, /deploy/dist/app.module.js, ...
+#   /deploy/node_modules/@nestjs/core (flat, no symlinks)
+#   /deploy/node_modules/.pnpm (resolved)
 COPY --from=builder /deploy /deploy
 
 WORKDIR /deploy
 EXPOSE 8000
-
-# ENTRYPOINT explicitly invokes node, CMD provides the script.
-# This way, even if Railway overrides CMD with a flag, the WORKDIR
-# resolution and entry point are locked in by the Dockerfile.
 ENTRYPOINT ["node"]
 CMD ["dist/main.js"]
