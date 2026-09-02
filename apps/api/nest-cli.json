@@ -7,6 +7,6 @@
     "assets": [],
     "watchAssets": true,
     "deleteOutDir": true,
-    "tsConfigPath": "tsconfig.json"
+    "tsConfigPath": "tsconfig.build.json"
   }
 }

@@ -5,6 +5,7 @@
   "description": "Eger Város Probléma Térkép — NestJS backend (PostGIS + Supabase + Prisma).",
   "scripts": {
     "dev": "nest start --watch",
+    "prebuild": "rm -rf dist tsconfig.tsbuildinfo",
     "build": "nest build",
     "start": "node dist/main.js",
     "start:prod": "NODE_ENV=production node dist/main.js",
