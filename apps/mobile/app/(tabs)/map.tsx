@@ -1,72 +1,49 @@
+// apps/mobile/app/(tabs)/map.tsx
+//
+// "Térkép" tab.  Renders the OSMap overlay with markers sourced from
+// `useNearbyProblems`.  When the user taps a pin, we push the
+// `/problem/[id]` modal with the marker's id — the detail screen owns
+// fetching the full record.
+
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import type { ProblemMarker } from '@/types';
 import { MapScreen } from '@/components/map/MapScreen';
+import { useNearbyProblems } from '@/lib/api/queries/problems';
+import { DEFAULT_NEARBY_RADIUS_M } from '@/types';
 
-// Hard-coded marker set for the M1 stub — replaced by a TanStack Query against
-// `/problems/nearby` once the API endpoint is wired in M2.
-const SAMPLE_MARKERS: ReadonlyArray<ProblemMarker> = [
-  {
-    id: 'sample-1',
-    title: 'Kátyú a Kossuth utcán',
-    category: 'infrastructure',
-    status: 'open',
-    latitude: 47.9031,
-    longitude: 20.3766,
-    score: 7,
-  },
-  {
-    id: 'sample-2',
-    title: 'Nem működik a közvilágítás',
-    category: 'infrastructure',
-    status: 'investigating',
-    latitude: 47.8998,
-    longitude: 20.3790,
-    score: 3,
-  },
-  {
-    id: 'sample-3',
-    title: 'Szemét az Eger-patak partján',
-    category: 'environment',
-    status: 'open',
-    latitude: 47.9055,
-    longitude: 20.3740,
-    score: 5,
-  },
-  {
-    id: 'sample-4',
-    title: 'Veszélyes gólyafészek (már megoldva)',
-    category: 'public_safety',
-    status: 'resolved',
-    latitude: 47.8990,
-    longitude: 20.3715,
-    score: 12,
-  },
-];
+const EGER_CENTRE = { latitude: 47.9025, longitude: 20.3772 } as const;
 
 export default function MapRoute() {
   const router = useRouter();
+  const query = useNearbyProblems({
+    latitude: EGER_CENTRE.latitude,
+    longitude: EGER_CENTRE.longitude,
+    radiusMeters: DEFAULT_NEARBY_RADIUS_M,
+  });
+
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="map-tab">
       <MapScreen
-        initialProblems={SAMPLE_MARKERS}
+        initialProblems={query.data ?? []}
         onMarkerPress={(id) => router.push({ pathname: '/problem/[id]', params: { id } })}
       />
-      <View style={styles.legend} pointerEvents="none">
-        <Text style={styles.legendTitle}>M1 — Térkép (OSMap)</Text>
-        <Text style={styles.legendBody}>
-          OSMap csempe overlay react-native-maps-szel ({`provider={null}`}). A pin-ek
-          minta-adatok, a valódi feed a Task M2-ben jön.
-        </Text>
-      </View>
+      {!query.isLoading && (query.data?.length ?? 0) === 0 ? (
+        <View style={styles.banner} pointerEvents="none">
+          <Text style={styles.bannerText}>
+            {query.error
+              ? '📍 A problémák betöltése nem sikerült — húzd lefelé a frissítéshez.'
+              : 'Még nincs megjeleníthető bejelentés a közelben.'}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f172a' },
-  legend: {
+  banner: {
     position: 'absolute',
     top: 12,
     left: 12,
@@ -75,6 +52,5 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 8,
   },
-  legendTitle: { color: '#e2e8f0', fontWeight: '700', fontSize: 12 },
-  legendBody: { color: '#94a3b8', fontSize: 11, marginTop: 2 },
+  bannerText: { color: '#e2e8f0', fontSize: 12 },
 });

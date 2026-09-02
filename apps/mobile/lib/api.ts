@@ -1,46 +1,47 @@
+// apps/mobile/lib/api.ts
+//
+// Thin typed wrapper around the NestJS backend (apps/api).
+//
+//   - Sends a Bearer token from Supabase on every request when one is given.
+//   - Throws `ApiError` on non-2xx so TanStack Query's onError / retry logic
+//     sees a real status code.
+//   - When `USE_MOCK` is true (default in CI / no-API dev) it falls through
+//     to `lib/mock.ts`, an in-memory mock that mirrors the demo dataset so
+//     the UI stays demo-able without the backend running.
+//
+// Mirrors apps/web/lib/api/client.ts.  The mock split lives in a separate
+// module so the production code path is the one that actually exercises
+// the real network plumbing.
 import Constants from 'expo-constants';
 import { supabase } from './supabase';
+import { USE_API, USE_MOCK, ENV } from './env';
+import { mockFetch } from './mock';
+import { ApiError } from './api-error';
 
-/**
- * Thin typed wrapper around the NestJS backend.  We intentionally avoid
- * axios here — `fetch` is good enough and shaves a few KB off the bundle.
- *
- * Every request carries the current Supabase access token in the
- * `Authorization: Bearer ...` header so the backend's JwtAuthGuard can
- * identify the user.  When the session is missing we send `none` and the
- * server's `@Public()` decorator opts the endpoint out of auth.
- */
-export class ApiError extends Error {
-  constructor(
-    public readonly status: number,
-    public readonly body: unknown,
-    message: string,
-  ) {
-    super(message);
-    this.name = 'ApiError';
-  }
-}
+export { ApiError };
 
-interface ApiOptions {
+export interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
-  /** Query-string params, serialised with `encodeURIComponent`. */
+  /** Query-string params; undefined values are skipped. */
   query?: Record<string, string | number | boolean | undefined>;
   signal?: AbortSignal;
+  /**
+   * Override the access token sent in the `Authorization: Bearer …` header.
+   * If omitted (or undefined) we read the current Supabase session.  Pass
+   * `null` to explicitly skip the header.
+   */
+  accessToken?: string | null;
+  /**
+   * Force this call through the in-memory mock dataset (skips the network),
+   * even when the global USE_API flag is true.  Useful for tests + Detox.
+   */
+  useMock?: boolean;
 }
 
-function resolveBaseUrl(): string {
-  const fromEnv = process.env.EXPO_PUBLIC_API_BASE_URL;
-  if (fromEnv && fromEnv.length > 0) return fromEnv.replace(/\/$/, '');
-  const fromConfig = Constants.expoConfig?.extra?.apiBaseUrl as string | undefined;
-  return fromConfig ?? 'http://localhost:8000';
-}
+export const API_BASE_URL: string = ENV.apiBaseUrl;
 
-export const API_BASE_URL: string = resolveBaseUrl();
-
-export async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
-  const { method = 'GET', body, query, signal } = opts;
-
+function buildUrl(path: string, query?: ApiOptions['query']): string {
   const url = new URL(API_BASE_URL + (path.startsWith('/') ? path : `/${path}`));
   if (query) {
     for (const [k, v] of Object.entries(query)) {
@@ -48,22 +49,32 @@ export async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
       url.searchParams.set(k, String(v));
     }
   }
+  return url.toString();
+}
 
-  // Pull the token fresh on every request — Supabase auto-refreshes so we
-  // always get the latest.  Avoid keeping a copy in module state.
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+export async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
+  const { method = 'GET', body, query, signal, accessToken, useMock } = opts;
 
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-  };
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
-  if (session?.access_token) {
-    headers.Authorization = `Bearer ${session.access_token}`;
+  const shouldMock = useMock ?? USE_MOCK;
+  if (shouldMock) {
+    return mockFetch<T>(path, { method, query, body });
   }
 
-  const res = await fetch(url.toString(), {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  } else if (accessToken === undefined) {
+    // Pull the token fresh on every request — Supabase auto-refreshes so
+    // we always get the latest.  Avoid keeping a copy in module state.
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+  }
+
+  const res = await fetch(buildUrl(path, query), {
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -74,11 +85,7 @@ export async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
   const parsed: unknown = text ? safeJsonParse(text) : null;
 
   if (!res.ok) {
-    throw new ApiError(
-      res.status,
-      parsed,
-      `[api] ${method} ${path} → ${res.status} ${res.statusText}`,
-    );
+    throw new ApiError(res.status, parsed, `[api] ${method} ${path} → ${res.status} ${res.statusText}`);
   }
   return parsed as T;
 }
@@ -90,3 +97,6 @@ function safeJsonParse(text: string): unknown {
     return text;
   }
 }
+
+// Re-export the flags so consumers (e.g. TanStack Query hooks) can branch on them.
+export { USE_API, USE_MOCK };

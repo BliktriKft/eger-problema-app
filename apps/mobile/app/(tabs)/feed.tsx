@@ -1,67 +1,118 @@
-import React from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+// apps/mobile/app/(tabs)/feed.tsx
+//
+// "Lista" tab.  Renders the nearby problems feed via `useNearbyProblems`.
+// Pull-to-refresh, category filter, and a friendly empty/error state.
+//
+// We anchor the "nearby" query on Eger centre when the user hasn't
+// granted location permission — the OSMap tab owns the GPS bootstrap,
+// so by the time the user lands here we either have a position or the
+// `RegionContext` fallback.
+
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { ProblemCard } from '@/components/problems/ProblemCard';
-import { ProblemMarker } from '@/types';
+import { CategoryPicker } from '@/components/problems/CategoryPicker';
+import { useNearbyProblems } from '@/lib/api/queries/problems';
+import { DEFAULT_NEARBY_RADIUS_M } from '@/types';
+import type { ProblemCategory, ProblemMarker } from '@/types';
 
-// Same sample data as the map for visual coherence in the M1 demo.
-const SAMPLE_FEED: ReadonlyArray<ProblemMarker> = [
-  {
-    id: 'sample-1',
-    title: 'Kátyú a Kossuth utcán',
-    category: 'infrastructure',
-    status: 'open',
-    latitude: 47.9031,
-    longitude: 20.3766,
-    score: 7,
-  },
-  {
-    id: 'sample-2',
-    title: 'Nem működik a közvilágítás',
-    category: 'infrastructure',
-    status: 'investigating',
-    latitude: 47.8998,
-    longitude: 20.3790,
-    score: 3,
-  },
-  {
-    id: 'sample-3',
-    title: 'Szemét az Eger-patak partján',
-    category: 'environment',
-    status: 'open',
-    latitude: 47.9055,
-    longitude: 20.3740,
-    score: 5,
-  },
-];
+const EGER_CENTRE = { latitude: 47.9025, longitude: 20.3772 } as const;
 
 export default function FeedRoute() {
   const router = useRouter();
+  const [category, setCategory] = useState<ProblemCategory | null>(null);
+
+  const query = useNearbyProblems({
+    latitude: EGER_CENTRE.latitude,
+    longitude: EGER_CENTRE.longitude,
+    radiusMeters: DEFAULT_NEARBY_RADIUS_M,
+    ...(category ? { category } : {}),
+  });
+
+  const onRefresh = useCallback(() => {
+    query.refetch();
+  }, [query]);
+
+  const renderItem = useCallback(
+    ({ item }: { item: ProblemMarker }) => (
+      <ProblemCard
+        problem={item}
+        onPress={() => router.push({ pathname: '/problem/[id]', params: { id: item.id } })}
+      />
+    ),
+    [router],
+  );
+
+  const header = useMemo(
+    () => (
+      <View style={styles.headerWrap}>
+        <Text style={styles.title}>Bejelentések</Text>
+        <Text style={styles.subtitle}>
+          {query.data
+            ? `${query.data.length} db probléma Eger belvárosában`
+            : 'Betöltés…'}
+        </Text>
+        <CategoryPicker
+          value={category}
+          onChange={setCategory}
+          showAll
+          testIDPrefix="feed-filter"
+        />
+      </View>
+    ),
+    [query.data, category],
+  );
+
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="feed-screen">
       <FlatList
-        data={SAMPLE_FEED as ProblemMarker[]}
+        data={query.data ?? []}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <ProblemCard
-            problem={item}
-            onPress={() => router.push({ pathname: '/problem/[id]', params: { id: item.id } })}
-          />
-        )}
-        ListHeaderComponent={
-          <View style={styles.header}>
-            <Text style={styles.title}>Bejelentések</Text>
-            <Text style={styles.subtitle}>
-              M1 — minta lista. Az éles feed a Task M2-ben (TanStack Query + `GET /problems`).
-            </Text>
-          </View>
-        }
+        renderItem={renderItem}
+        ListHeaderComponent={header}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>Hamarosan…</Text>
-          </View>
+          query.isLoading ? (
+            <View style={styles.empty}>
+              <ActivityIndicator color="#38bdf8" />
+            </View>
+          ) : query.error ? (
+            <View style={styles.empty}>
+              <Text style={styles.errorTitle}>Nem sikerült betölteni a bejelentéseket.</Text>
+              <Text style={styles.errorBody}>Húzd lefelé az újrapróbálkozáshoz.</Text>
+            </View>
+          ) : (
+            <View style={styles.empty}>
+              <Text style={styles.muted}>Nincs a szűrésnek megfelelő bejelentés.</Text>
+              {category ? (
+                <Pressable
+                  onPress={() => setCategory(null)}
+                  style={styles.cta}
+                  testID="feed-clear-filter"
+                >
+                  <Text style={styles.ctaLabel}>Szűrés törlése</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          )
         }
-        contentContainerStyle={SAMPLE_FEED.length === 0 ? styles.emptyContainer : undefined}
+        refreshControl={
+          <RefreshControl
+            refreshing={query.isFetching && !query.isLoading}
+            onRefresh={onRefresh}
+            tintColor="#0f172a"
+            colors={['#0f172a']}
+          />
+        }
+        contentContainerStyle={query.data?.length === 0 ? styles.emptyContainer : undefined}
       />
     </View>
   );
@@ -69,10 +120,20 @@ export default function FeedRoute() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f1f5f9' },
-  header: { padding: 16, paddingBottom: 8 },
-  title: { fontSize: 22, fontWeight: '700', color: '#0f172a' },
-  subtitle: { fontSize: 12, color: '#64748b', marginTop: 4 },
-  empty: { padding: 48, alignItems: 'center' },
-  emptyText: { color: '#64748b', fontSize: 14 },
+  headerWrap: { paddingTop: 8, paddingBottom: 4, backgroundColor: '#f1f5f9' },
+  title: { fontSize: 22, fontWeight: '700', color: '#0f172a', paddingHorizontal: 16 },
+  subtitle: { fontSize: 12, color: '#64748b', marginTop: 4, paddingHorizontal: 16 },
+  empty: { padding: 48, alignItems: 'center', gap: 8 },
   emptyContainer: { flex: 1, justifyContent: 'center' },
+  muted: { color: '#64748b', fontSize: 14 },
+  errorTitle: { color: '#dc2626', fontWeight: '600', fontSize: 14, textAlign: 'center' },
+  errorBody: { color: '#64748b', fontSize: 12, textAlign: 'center' },
+  cta: {
+    marginTop: 8,
+    backgroundColor: '#0f172a',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  ctaLabel: { color: '#fff', fontWeight: '600', fontSize: 13 },
 });
