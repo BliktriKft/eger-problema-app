@@ -5,17 +5,16 @@
 #
 # Strategy:
 #   Stage 1 (builder): install everything, build the shared package,
-#                       build the api, then run `pnpm deploy` to flatten
-#                       node_modules (symlinks resolved) into a self-
-#                       contained /deploy dir.
-#   Stage 2 (runner):  copy ONLY the flattened /deploy dir from builder
-#                       into a slim runtime image. The /deploy dir
-#                       already contains:
-#                         - apps/api/dist (built code)
-#                         - apps/api/node_modules (flat, prod-only,
-#                           symlinks resolved)
-#                         - packages/shared/dist + node_modules
-#                       No further install or symlink resolution needed.
+#                       build the api, then run `pnpm deploy --prod /deploy`
+#                       to flatten node_modules into a self-contained
+#                       directory. The /deploy dir ends up containing:
+#                         - apps/api/package.json
+#                         - apps/api/dist/main.js, dist/app.module.js, ...
+#                         - apps/api/node_modules (flat, prod-only)
+#                         - packages/shared/dist
+#   Stage 2 (runner):  copy /deploy from builder, WORKDIR into
+#                       /deploy/apps/api (where the dist/ lives), run
+#                       node dist/main.js.
 
 # ---- Stage 1: deps + builds + pnpm deploy ----
 FROM node:20-bookworm-slim AS builder
@@ -31,33 +30,32 @@ COPY apps/api/package.json apps/api/
 # Install everything (devDeps included) so we can build.
 RUN pnpm install --frozen-lockfile=false
 
-# Now copy the source code and run the builds.
+# Now copy the actual source code and run the builds.
 COPY packages/shared/ packages/shared/
 COPY apps/api/ apps/api/
 RUN pnpm --filter @eger/shared build
 RUN pnpm --filter @eger/api build
 
-# Run `pnpm deploy` to flatten node_modules into a self-contained
-# directory. This resolves all pnpm symlinks into real files in
-# /deploy/apps/api/node_modules, which Docker COPYs cleanly.
-# The --prod flag excludes devDeps.
+# Flatten the api workspace into /deploy so the runtime image
+# does not depend on pnpm symlinks. --prod strips devDeps.
 RUN pnpm --filter @eger/api deploy --prod /deploy
 
 # ---- Stage 2: production-only runtime ----
 FROM node:20-bookworm-slim AS runner
-WORKDIR /app
-
 ENV NODE_ENV=production
 ENV PORT=8000
 
-# Copy the entire flattened deployment bundle. This contains:
-#   - apps/api/package.json
-#   - apps/api/dist/main.js, dist/app.module.js, ...
-#   - apps/api/node_modules/@nestjs/core (real file, not symlink)
-#   - apps/api/node_modules/.pnpm (resolved)
-#   - packages/shared/dist (the compiled shared package)
-#   - packages/shared/package.json
-COPY --from=builder /deploy /app
+RUN corepack enable
 
+# pnpm deploy lays out apps/api/* at /deploy, including:
+#   /deploy/dist/main.js
+#   /deploy/dist/app.module.js
+#   /deploy/node_modules/@nestjs/core (real file, no symlinks)
+#   /deploy/node_modules/.pnpm (resolved)
+#   /deploy/package.json
+#   /deploy/node_modules/... (every prod dep)
+COPY --from=builder /deploy /deploy
+
+WORKDIR /deploy
 EXPOSE 8000
 CMD ["node", "dist/main.js"]
