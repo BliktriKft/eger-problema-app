@@ -1,41 +1,59 @@
 # Multi-stage Dockerfile for the Eger Város Probléma Térkép NestJS API.
-# Designed for Railway (which can pick this up if "Builder: Dockerfile"
-# is set in the service settings). Root directory in Railway: leave empty
-# so the workspace files are visible.
+# Designed for Railway: place the Dockerfile at the monorepo root and
+# leave the Railway service's "Root Directory" empty so the Docker
+# build context is the entire monorepo.
+#
+# Strategy:
+#   Stage 1 (builder): install everything (dev deps included), build
+#                       the shared package, build the api.
+#   Stage 2 (runner):  fresh node_modules with --prod only, copy in
+#                       the built dist/ tree. Skipping COPY on the
+#                       symlinked pnpm node_modules avoids the
+#                       "Cannot find module @nestjs/core" error you
+#                       get when Docker flattens the .pnpm store.
 
-# ---- Stage 1: deps + shared build ----
+# ---- Stage 1: deps + builds ----
 FROM node:20-bookworm-slim AS builder
 WORKDIR /repo
 
 RUN corepack enable
 
-# Copy the lockfile + manifests first so pnpm can resolve and cache them.
+# Copy manifests first so pnpm resolves and caches deps in a separate
+# Docker layer.
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/api/package.json apps/api/
 
-# Install the api workspace and its transitive deps.
+# Install api workspace + all transitive deps (including devDeps
+# we need for nest build / tsc).
 RUN pnpm install --frozen-lockfile=false
 
-# Copy the rest of the source and build the shared package first
-# (the api imports @eger/shared as a workspace package).
+# Now copy the actual source code and run the builds.
 COPY packages/shared/ packages/shared/
 COPY apps/api/ apps/api/
 RUN pnpm --filter @eger/shared build
 RUN pnpm --filter @eger/api build
 
-# ---- Stage 2: slim runtime ----
+# ---- Stage 2: production-only runtime ----
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=8000
 
-# Copy only what we need at runtime.
+RUN corepack enable
+
+# Re-install only production deps in this stage. The pnpm symlink
+# structure (node_modules/@nestjs/core -> node_modules/.pnpm/...)
+# survives a clean pnpm install, unlike a `COPY node_modules` from
+# the builder stage.
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/shared/package.json packages/shared/
+COPY apps/api/package.json apps/api/
+RUN pnpm install --prod --frozen-lockfile=false
+
+# Copy the built artifacts from the builder stage.
 COPY --from=builder /repo/apps/api/dist ./dist
-COPY --from=builder /repo/apps/api/package.json ./
-COPY --from=builder /repo/apps/api/node_modules ./node_modules
-COPY --from=builder /repo/node_modules/.pnpm ./node_modules/.pnpm
 COPY --from=builder /repo/packages/shared/dist /repo/packages/shared/dist
 
 EXPOSE 8000
