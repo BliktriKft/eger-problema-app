@@ -16,8 +16,16 @@
 #                       /deploy/apps/api (where the dist/ lives), run
 #                       node dist/main.js.
 
+# Bumped 2026-09-02 to invalidate Railway's stale build cache. The
+# container kept failing because the runner stage was inherited from
+# a much older layer that expected /app/dist/main.js, while the
+# current Dockerfile writes everything to /deploy. Railway caches the
+# layer by content hash; bumping this ARG forces a fresh build.
+ARG CACHE_BUST=2026-09-02
+
 # ---- Stage 1: deps + builds + pnpm deploy ----
 FROM node:20-bookworm-slim AS builder
+ARG CACHE_BUST
 WORKDIR /repo
 
 RUN corepack enable
@@ -42,6 +50,7 @@ RUN pnpm --filter @eger/api deploy --prod /deploy
 
 # ---- Stage 2: production-only runtime ----
 FROM node:20-bookworm-slim AS runner
+ARG CACHE_BUST
 ENV NODE_ENV=production
 ENV PORT=8000
 
