@@ -27,3 +27,4 @@ coverage/
 e2e/artifacts/
 e2e/.cache/
 detox-last-run/
+.artifacts/

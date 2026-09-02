@@ -36,5 +36,5 @@
     "*.tsx",
     "expo-env.d.ts"
   ],
-  "exclude": ["node_modules", ".expo", "dist", "e2e", "android", "ios"]
+  "exclude": ["node_modules", ".expo", "dist", "e2e", "android", "ios", "lib/__smoke__"]
 }

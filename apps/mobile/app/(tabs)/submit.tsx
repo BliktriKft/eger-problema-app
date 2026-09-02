@@ -1,62 +1,85 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+// apps/mobile/app/(tabs)/submit.tsx
+//
+// "Bejelentés" tab.  Wraps the existing `SubmitForm` (react-hook-form +
+// Zod, M1) with the location picker and `useCreateProblem` mutation.
+//
+// Auth gate is enforced via `useRequireAuth()` — the `AuthGate`
+// component renders a "jelentkezz be" CTA when the user has no session
+// and `USE_API` is on.  In mock mode we let anyone submit (the demo
+// still works without a backend).
+
+import React, { useState } from 'react';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@/lib/auth-context';
+import { SubmitForm, type SubmitFormValues } from '@/components/problems/SubmitForm';
+import { LocationPicker, type LocationPickerValue } from '@/components/submit/LocationPicker';
+import { AuthGate } from '@/lib/auth-gate';
+import { useCreateProblem } from '@/lib/api/queries/problems';
 
 export default function SubmitRoute() {
-  const router = useRouter();
-  const { isAuthenticated } = useAuth();
+  return (
+    <AuthGate reason="Új pin beküldéséhez be kell jelentkezned.">
+      <SubmitBody />
+    </AuthGate>
+  );
+}
 
-  if (!isAuthenticated) {
-    return (
-      <View style={styles.gate} testID="submit-auth-gate">
-        <Text style={styles.title}>Bejelentéshez be kell jelentkezned</Text>
-        <Text style={styles.body}>
-          Új pin beküldéséhez Google-, Apple- vagy Meta-fiókkal, illetve e-mail + jelszóval
-          tudsz belépni.
-        </Text>
-        <Pressable
-          onPress={() => router.replace('/(auth)/login')}
-          style={styles.cta}
-          testID="submit-login-cta"
-        >
-          <Text style={styles.ctaLabel}>Bejelentkezés</Text>
-        </Pressable>
-      </View>
-    );
+function SubmitBody() {
+  const router = useRouter();
+  const [location, setLocation] = useState<LocationPickerValue | null>(null);
+  const create = useCreateProblem();
+
+  async function handleSubmit(values: SubmitFormValues) {
+    if (!location) {
+      Alert.alert('Hiányzó hely', 'Jelöld ki a bejelentés helyét a térképen.');
+      return;
+    }
+    try {
+      await create.mutateAsync({
+        title: values.title,
+        description: values.description,
+        category: values.category,
+        latitude: location.latitude,
+        longitude: location.longitude,
+      });
+      Alert.alert('Köszönjük!', 'A bejelentésed sikeresen beküldtük.', [
+        {
+          text: 'OK',
+          onPress: () => router.replace('/(tabs)/map'),
+        },
+      ]);
+    } catch (err) {
+      Alert.alert(
+        'Beküldés sikertelen',
+        err instanceof Error ? err.message : 'Ismeretlen hiba',
+      );
+    }
   }
 
-  // Authenticated path: real form lives in M2.  Show a confirming placeholder
-  // so QA can verify the auth gate correctly toggles.
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="submit-screen">
       <Text style={styles.title}>Új bejelentés</Text>
       <Text style={styles.body}>
-        A SubmitForm komponens kész (react-hook-form + zod). A tényleges API hívás a Task M2-ben
-        kerül bekötésre.
+        Töltsd ki az űrlapot, jelöld meg a helyet a térképen, és küldd be a bejelentést.
       </Text>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Hely</Text>
+        <LocationPicker value={location} onChange={setLocation} />
+      </View>
+
+      <SubmitForm
+        initialLocation={location ?? { latitude: 47.9025, longitude: 20.3772 }}
+        onSubmit={handleSubmit}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: '#0f172a' },
-  gate: {
-    flex: 1,
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0f172a',
-    gap: 16,
-  },
-  title: { fontSize: 20, fontWeight: '700', color: '#fff', textAlign: 'center' },
-  body: { fontSize: 14, color: '#cbd5e1', textAlign: 'center', lineHeight: 20 },
-  cta: {
-    marginTop: 12,
-    backgroundColor: '#38bdf8',
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  ctaLabel: { color: '#0f172a', fontWeight: '700', fontSize: 15 },
+  title: { color: '#fff', fontSize: 22, fontWeight: '700' },
+  body: { color: '#94a3b8', fontSize: 13, marginTop: 4, marginBottom: 12 },
+  section: { marginVertical: 12, gap: 6 },
+  sectionLabel: { color: '#cbd5e1', fontSize: 12, fontWeight: '600' },
 });
