@@ -3,10 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "description": "Eger Város Probléma Térkép — Next.js + NestJS + Supabase + React Native",
-  "packageManager": "pnpm@9.0.0",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
   "scripts": {
     "dev": "turbo run dev",
-    "build": "turbo run build",
+    "build": "pnpm --filter @eger/shared build && turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
@@ -14,16 +18,12 @@
   },
   "devDependencies": {
     "openapi-typescript": "^7.13.0",
-    "prettier": "^3.3.0",
-    "turbo": "^2.0.0",
-    "typescript": "^5.5.0"
+    "prettier": "^3.6.2",
+    "turbo": "^2.10.12",
+    "typescript": "^5.7.3"
   },
   "workspaces": [
     "apps/*",
     "packages/*"
-  ],
-  "engines": {
-    "node": ">=20",
-    "pnpm": ">=9"
-  }
+  ]
 }
