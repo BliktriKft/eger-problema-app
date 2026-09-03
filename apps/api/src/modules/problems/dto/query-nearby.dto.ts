@@ -19,12 +19,12 @@ export class QueryNearbyDto {
   @ApiProperty({ minimum: -90, maximum: 90 })
   @Type(() => Number)
   @IsLatitude()
-  lat!: number;
+  latitude!: number;
 
   @ApiProperty({ minimum: -180, maximum: 180 })
   @Type(() => Number)
   @IsLongitude()
-  lng!: number;
+  longitude!: number;
 
   @ApiProperty({
     minimum: 1,
@@ -37,7 +37,7 @@ export class QueryNearbyDto {
   @Min(1)
   @Max(MAX_NEARBY_RADIUS_M)
   @IsOptional()
-  radius?: number = DEFAULT_NEARBY_RADIUS_M;
+  radiusMeters?: number = DEFAULT_NEARBY_RADIUS_M;
 
   @ApiProperty({ enum: PROBLEM_CATEGORIES, required: false })
   @IsOptional()
