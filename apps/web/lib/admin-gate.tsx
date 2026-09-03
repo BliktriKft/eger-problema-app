@@ -92,7 +92,7 @@ export function AdminGate({ children }: AdminGateProps) {
             <h2 className="text-lg font-semibold tracking-tight">Nincs jogosultságod</h2>
             <p className="text-sm text-muted-foreground">
               Ez az oldal csak admin felhasználóknak érhető el. Ha szerinted ez tévedés,
-              kérjük, jelezd a polgármesteri hivatalnak.
+              kérjük, jelezd az adminnak.
             </p>
             <a
               href="/"
