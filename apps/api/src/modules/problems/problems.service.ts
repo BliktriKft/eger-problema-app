@@ -5,44 +5,46 @@ import { PRISMA_CLIENT } from "../../database/database.module";
 /**
  * Problems service — CRUD over the `problems` table.
  *
- * Schema mapping notes (the cause of the prior failures):
- *   - Prisma field `institutionId` → DB column `institution_id`
- *     (@map("institution_id") in schema.prisma)
- *   - Prisma field `createdBy`     → DB column `created_by`
- *   - Prisma field `createdAt`     → DB column `created_at`
- *   - Prisma field `updatedAt`     → DB column `updated_at`
- *   - Prisma field `institutionId` → DB column `institution_id`
- * So all raw SQL must reference snake_case column names, NOT the
- * camelCase Prisma field names. The previous version used
- * `"institutionId"` (camelCase) and Postgres returned 42703
- * 'undefined_column' which Prisma surfaced as a generic
- * PrismaClientKnownRequestError.
+ * Critical schema reality (the cause of the previous failures):
+ *   The Prisma schema.prisma has a `updatedAt DateTime @map("updated_at")`
+ *   field on the Problem model, BUT the 0001_init migration never
+ *   created an `updated_at` column on the `problems` table.
+ *   Postgres therefore raises '42703 column "updated_at" does not
+ *   exist' on every raw query that references it. So we MUST NOT
+ *   select updated_at in raw SQL, even though the Prisma model
+ *   thinks it exists.
+ *
+ *   DB columns that DO exist on `problems`:
+ *     id, title, description, location, latitude, longitude,
+ *     category, status, institution_id, created_by, created_at,
+ *     score
+ *   DB columns that DO NOT exist:
+ *     updated_at  ← schema.prisma says it should, migration didn't
+ *                   create it. We omit it from all SELECTs.
+ *
+ * Column-name mapping (Prisma field → DB column):
+ *   institutionId → institution_id
+ *   createdBy     → created_by
+ *   createdAt     → created_at
+ *   (updatedAt    → updated_at — but we omit it; see above)
  *
  * Why $queryRawUnsafe + bound params array:
- *   - $queryRaw<unknown[]>(Prisma.sql\`...${var}...\`) is brittle
- *     because Prisma 6 is stricter about template-literal type
- *     inference and the generated runtime wrapper sometimes fails
- *     to bind variables into the same query that uses positional
- *     PG parameters. $queryRawUnsafe with explicit params array
- *     avoids that issue entirely — the SQL string goes straight
- *     to PG with PG-side parameter binding.
- *   - We can't use Prisma's typed delegate because the `location`
- *     column is `Unsupported('geography(Point, 4326)')` and the
- *     generator refuses to expose a typed reader for it.
+ *   - $queryRaw<unknown[]>(Prisma.sql\`...${var}...\`) is brittle in
+ *     Prisma 6 (template-literal typegen vs PG positional params
+ *     sometimes collide and surface as generic PrismaClientKnownRequestError).
+ *   - $queryRawUnsafe('... $1, $2 ...', [var, var]) avoids the
+ *     issue — PG handles the parameter binding directly.
  *
- * Why every column has an explicit :: cast:
- *   - Prisma's row shape inference tries to match the Prisma model
- *     field types, but the underlying PG types (text, uuid,
- *     timestamptz, double precision, enum) come back in PG's wire
- *     format. Explicit casts (::text, ::uuid, ::timestamptz,
- *     ::float8) keep the JSON the API emits consistent across
- *     driver versions.
+ * Why we can't use Prisma's typed delegate at all:
+ *   - The `location` column is Unsupported('geography(Point, 4326)').
+ *     Prisma's generator refuses to expose a typed field for it,
+ *     which breaks the whole typed delegate for the model.
  */
 @Injectable()
 export class ProblemsService {
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
-  /** Column list shared by findAll / findOne / nearby. Uses snake_case. */
+  /** Column list shared by findAll / findOne / nearby. */
   private static readonly COLUMNS = `
     id::text AS id,
     title,
@@ -54,7 +56,6 @@ export class ProblemsService {
     institution_id::text AS "institutionId",
     created_by::text AS "createdBy",
     created_at::timestamptz AS "createdAt",
-    updated_at::timestamptz AS "updatedAt",
     score::int AS score
   `;
 
@@ -122,11 +123,11 @@ export class ProblemsService {
       `INSERT INTO problems (
          id, title, description, category, status,
          latitude, longitude, institution_id, created_by,
-         created_at, updated_at, score, location
+         created_at, score, location
        ) VALUES (
          gen_random_uuid(), $1, $2, $3::"ProblemCategory", 'open'::"ProblemStatus",
          $4::float8, $5::float8, $6::uuid, $7::uuid,
-         NOW(), NOW(), 0,
+         NOW(), 0,
          ST_SetSRID(ST_MakePoint($5, $4), 4326)::geography
        )`,
       input.title,
