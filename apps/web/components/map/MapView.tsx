@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, ZoomControl, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useRouter } from 'next/navigation';
@@ -36,12 +36,13 @@ function MapViewClient({ center = EGER_CENTER, zoom = 13, markers, onMapClickFor
 
   return (
     <div className={className} data-testid="map-view" data-marker-count={markers.length}>
-      <MapContainer center={center} zoom={zoom} scrollWheelZoom className="size-full" attributionControl>
+      <MapContainer center={center} zoom={zoom} scrollWheelZoom className="size-full" attributionControl={false} zoomControl={false}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           maxZoom={19}
         />
+        <ZoomControl position="topright" />
         {onMapClickForNewPin ? <ClickToAddLayer /> : null}
         {markers.map((m) => {
           const isSelected = selectedId === m.id;

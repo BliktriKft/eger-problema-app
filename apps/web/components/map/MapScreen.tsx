@@ -45,7 +45,7 @@ export function MapScreen() {
     <div className="relative h-[calc(100vh-3.5rem)] w-full" data-testid="map-screen">
       <MapShell markers={markers} className="size-full" />
 
-      <aside className="pointer-events-auto absolute left-4 top-4 z-[400] hidden max-w-xs rounded-lg border border-border bg-background/95 p-3 shadow-md backdrop-blur md:block">
+      <aside className="pointer-events-auto absolute bottom-4 left-4 z-[400] hidden max-w-xs rounded-lg border border-border bg-background/95 p-3 shadow-md backdrop-blur md:block">
         <h2 className="mb-2 text-sm font-semibold">Szűrők</h2>
         <p className="text-xs text-muted-foreground">
           A kategória- és intézményszűrő a következő iterációban kerül bekötésre —
