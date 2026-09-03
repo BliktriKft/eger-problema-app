@@ -39,6 +39,13 @@ export class ProblemsController {
     return Promise.resolve([]);
   }
 
+  @Get(":id")
+  @Public()
+  @ApiOperation({ summary: "Get one problem (public)" })
+  findOne(@Param("id", ParseUUIDPipe) id: string): Promise<ProblemEntity> {
+    return this.problems.findOne(id) as Promise<ProblemEntity>;
+  }
+
   @Post()
   @ApiOperation({ summary: "Create a new problem (auth required)" })
   create(@Body() _body: CreateProblemDto): Promise<ProblemEntity> {
