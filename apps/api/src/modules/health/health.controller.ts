@@ -1,5 +1,6 @@
 import { Controller, Get } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Public } from "../auth/auth.guard";
 
 /**
  * Health controller placeholder.
@@ -17,6 +18,7 @@ export class HealthController {
    * Kubernetes does not restart the pod on dependency failure here.
    */
   @Get("live")
+  @Public()
   @ApiOperation({ summary: "Liveness probe (process responsive)" })
   live(): { status: string } {
     return { status: "ok" };

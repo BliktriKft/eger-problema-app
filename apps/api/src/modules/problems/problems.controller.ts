@@ -15,6 +15,7 @@ import { CreateProblemDto } from "./dto/create-problem.dto";
 import { UpdateProblemDto } from "./dto/update-problem.dto";
 import { QueryNearbyDto } from "./dto/query-nearby.dto";
 import { ProblemEntity } from "./entities/problem.entity";
+import { Public } from "../auth/auth.guard";
 
 @ApiTags("problems")
 @Controller("problems")
@@ -22,12 +23,14 @@ export class ProblemsController {
   constructor(private readonly problems: ProblemsService) {}
 
   @Get()
+  @Public()
   @ApiOperation({ summary: "List problems (paginated, filtered)" })
   findAll(): Promise<ProblemEntity[]> {
     return this.problems.findAll() as Promise<ProblemEntity[]>;
   }
 
   @Get("nearby")
+  @Public()
   @ApiOperation({
     summary: "Find problems within `radius` metres of (lat, lng)",
   })
