@@ -56,11 +56,24 @@ WORKDIR /app
 # runtime tree lives where Railway expects it (/app/node_modules,
 # /app/dist, etc.). The pnpm symlinks are created locally and survive
 # inside the image because we install into /app directly.
+#
+# --shamefully-hoist makes pnpm lay everything flat under
+# /app/node_modules without the .pnpm/ symlink layer. This is the
+# critical flag: the previous attempts left @nestjs/core under
+# node_modules/.pnpm/@nestjs+core@10.4.x/.../node_modules/@nestjs/core
+# and only symlinked node_modules/@nestjs/core → that path. When the
+# container started and resolved '@nestjs/core' from /app/dist/main.js,
+# Node's resolver walks up from /app/dist, then from /app, and looks
+# in /app/node_modules/@nestjs/core — it follows the symlink, but
+# the symlink target is inside node_modules/.pnpm/ which is still
+# there. The 'Cannot find module' error was therefore a false negative
+# from Node's module cache, or a symlink resolution edge case at
+# container start. Flat node_modules dodges the whole problem.
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/api/package.json apps/api/
 
-RUN pnpm install --prod --frozen-lockfile=false
+RUN pnpm install --prod --frozen-lockfile=false --shamefully-hoist
 
 # Copy the compiled output from the builder stage.
 COPY --from=builder /repo/apps/api/dist ./dist
