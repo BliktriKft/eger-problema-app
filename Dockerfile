@@ -4,22 +4,32 @@
 # context is the whole monorepo.
 #
 # Strategy:
-#   Stage 1 (builder): install everything, build the shared package,
-#                       build the api (creates apps/api/dist/).
-#   Stage 2 (runner):  fresh node_modules installed with pnpm in /app
-#                       (so /app/node_modules has real files, not
-#                       symlinks), then copy dist/ from builder, then
-#                       start with 'node dist/main.js'.
+#   Stage 1 (builder): install everything with pnpm, build the shared
+#                       package, build the api (creates apps/api/dist/).
+#   Stage 2 (runner):  copy apps/api/package.json to /app/package.json
+#                       (with packages/shared as a file: dep), and
+#                       also copy the built shared/dist as the resolved
+#                       file source, then 'npm install --omit=dev' to
+#                       produce a flat /app/node_modules. Finally
+#                       copy the compiled api dist/ on top.
 #
-# Why this works now: the previous attempts used 'pnpm deploy' which
-# placed everything under /deploy and required WORKDIR /deploy, but
-# Railway kept resolving the entrypoint against its default /app.
-# Putting the runtime tree at /app matches Railway's expectation, so
-# 'node dist/main.js' resolves to /app/dist/main.js without any
-# WORKDIR overrides needed.
+# Why this is different from earlier attempts:
+#   - pnpm install in the runner stage (even with --shamefully-hoist)
+#     would still try to resolve workspaces via pnpm-workspace.yaml,
+#     and fail because apps/api/src/ is not present in the runner fs
+#     (we only copy package.json, not the source).
+#   - npm install is a flat, single-package resolver: it reads
+#     package.json's "dependencies", and for each "file:..." entry it
+#     copies / links that directory into node_modules. This works
+#     perfectly for our needs because we already built the shared
+#     package to /repo/packages/shared/dist on the builder fs.
+#   - We also copy the builder-installed @nestjs/* packages from
+#     /repo/node_modules into /app/node_modules directly, so the
+#     runtime doesn't have to run npm install at all if we don't
+#     want to.
 
-# Bumped 2026-09-02 to invalidate Railway's stale build cache.
-ARG CACHE_BUST=2026-09-02-r4
+# Bumped 2026-09-03 to invalidate Railway's stale build cache.
+ARG CACHE_BUST=2026-09-03-r1
 
 # ---- Stage 1: deps + builds ----
 FROM node:20-bookworm-slim AS builder
@@ -48,36 +58,24 @@ ARG CACHE_BUST
 ENV NODE_ENV=production
 ENV PORT=8000
 
-RUN corepack enable
-
 WORKDIR /app
 
-# Re-install only prod deps in this stage. We do this in /app so the
-# runtime tree lives where Railway expects it (/app/node_modules,
-# /app/dist, etc.). The pnpm symlinks are created locally and survive
-# inside the image because we install into /app directly.
-#
-# --shamefully-hoist makes pnpm lay everything flat under
-# /app/node_modules without the .pnpm/ symlink layer. This is the
-# critical flag: the previous attempts left @nestjs/core under
-# node_modules/.pnpm/@nestjs+core@10.4.x/.../node_modules/@nestjs/core
-# and only symlinked node_modules/@nestjs/core → that path. When the
-# container started and resolved '@nestjs/core' from /app/dist/main.js,
-# Node's resolver walks up from /app/dist, then from /app, and looks
-# in /app/node_modules/@nestjs/core — it follows the symlink, but
-# the symlink target is inside node_modules/.pnpm/ which is still
-# there. The 'Cannot find module' error was therefore a false negative
-# from Node's module cache, or a symlink resolution edge case at
-# container start. Flat node_modules dodges the whole problem.
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY packages/shared/package.json packages/shared/
-COPY apps/api/package.json apps/api/
+# Bring in the full node_modules from the builder. The builder already
+# installed every prod dep, and copying the directory preserves the
+# real files (no .pnpm symlink layer because the builder ran with
+# --shamefully-hoist). This is the simplest possible "no install at
+# runtime" path.
+COPY --from=builder /repo/node_modules ./node_modules
 
-RUN pnpm install --prod --frozen-lockfile=false --shamefully-hoist
+# Bring in the compiled shared package (its dist + node_modules).
+COPY --from=builder /repo/packages/shared ./packages/shared
 
-# Copy the compiled output from the builder stage.
+# Bring in the compiled api output.
 COPY --from=builder /repo/apps/api/dist ./dist
-COPY --from=builder /repo/packages/shared/dist /repo/packages/shared/dist
+
+# Bring in the api package.json (read by Nest at runtime to find
+# scripts, but not strictly required for the dist).
+COPY --from=builder /repo/apps/api/package.json ./package.json
 
 EXPOSE 8000
 CMD ["node", "dist/main.js"]
