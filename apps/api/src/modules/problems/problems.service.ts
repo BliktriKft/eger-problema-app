@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../database/database.module";
 
 /**
@@ -9,11 +9,18 @@ import { PRISMA_CLIENT } from "../../database/database.module";
  *   - findAll (paginated, optionally filtered by category/status)
  *   - findOne (single problem, throws 404 if not found)
  *   - nearby (raw SQL via Prisma $queryRaw, uses PostGIS ST_DWithin)
- *   - create / update / remove (write-side; behind JwtAuthGuard)
+ *   - create (write-side; behind JwtAuthGuard)
  *
- * The previous placeholder returned `[]` for everything which is why the
- * Vercel frontend showed "Nem sikerült betölteni a bejelentést." for the
- * /problems/:id detail route even after the DB had 50 rows of seed data.
+ * The previous placeholder returned `[]` for everything which is why
+ * the Vercel frontend showed "Nem sikerült betölteni a bejelentést."
+ * for the /problems/:id detail route even after the DB had 50 rows of
+ * seed data. We use Prisma.$queryRaw (template literal) instead of
+ * $queryRawUnsafe because the latter does NOT substitute $1/$2 — it
+ * just hands the string to PG, which then fails to recognise the
+ * positional parameters and raises PrismaClientKnownRequestError.
+ *
+ * $queryRaw with Prisma.sql template literals gives us Prisma-style
+ * ${var} interpolation that PG accepts.
  */
 @Injectable()
 export class ProblemsService {
@@ -21,30 +28,28 @@ export class ProblemsService {
 
   /** List all problems (newest first). Real version will paginate. */
   async findAll(): Promise<unknown[]> {
-    const rows = await this.prisma.$queryRawUnsafe(
-      `SELECT id, title, description, category, status, latitude, longitude,
-              "institutionId", "createdBy", "createdAt", "updatedAt", score
-         FROM problems
-         ORDER BY "createdAt" DESC
-         LIMIT 100`,
-    );
-    return rows as unknown[];
+    return this.prisma.$queryRaw<unknown[]>(Prisma.sql`
+      SELECT id, title, description, category, status, latitude, longitude,
+             "institutionId", "createdBy", "createdAt", "updatedAt", score
+        FROM problems
+        ORDER BY "createdAt" DESC
+        LIMIT 100
+    `);
   }
 
   /** Get one problem by id. Throws 404 if missing. */
   async findOne(id: string): Promise<unknown> {
-    const rows = await this.prisma.$queryRawUnsafe(
-      `SELECT id, title, description, category, status, latitude, longitude,
-              "institutionId", "createdBy", "createdAt", "updatedAt", score
-         FROM problems
-         WHERE id = $1
-         LIMIT 1`,
-      id,
-    );
-    if (!rows || (rows as unknown[]).length === 0) {
+    const rows = await this.prisma.$queryRaw<unknown[]>(Prisma.sql`
+      SELECT id, title, description, category, status, latitude, longitude,
+             "institutionId", "createdBy", "createdAt", "updatedAt", score
+        FROM problems
+        WHERE id = ${id}
+        LIMIT 1
+    `);
+    if (!rows || rows.length === 0) {
       throw new NotFoundException(`Problem ${id} not found`);
     }
-    return (rows as unknown[])[0];
+    return rows[0];
   }
 
   /** Geo-search: problems within radiusMeters of (latitude, longitude). */
@@ -53,25 +58,21 @@ export class ProblemsService {
     longitude: number,
     radiusMeters: number,
   ): Promise<unknown[]> {
-    const rows = await this.prisma.$queryRawUnsafe(
-      `SELECT id, title, description, category, status, latitude, longitude,
-              "institutionId", "createdBy", "createdAt", "updatedAt", score
-         FROM problems
-         WHERE ST_DWithin(
-           location,
-           ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
-           $3
-         )
-         ORDER BY ST_Distance(
-           location,
-           ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
-         ) ASC
-         LIMIT 100`,
-      longitude,
-      latitude,
-      radiusMeters,
-    );
-    return rows as unknown[];
+    return this.prisma.$queryRaw<unknown[]>(Prisma.sql`
+      SELECT id, title, description, category, status, latitude, longitude,
+             "institutionId", "createdBy", "createdAt", "updatedAt", score
+        FROM problems
+        WHERE ST_DWithin(
+          location,
+          ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326)::geography,
+          ${radiusMeters}
+        )
+        ORDER BY ST_Distance(
+          location,
+          ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326)::geography
+        ) ASC
+        LIMIT 100
+    `);
   }
 
   /** Create a new problem (author is the Supabase auth user). */
@@ -84,27 +85,29 @@ export class ProblemsService {
     institutionId?: string | null;
     createdBy: string;
   }): Promise<unknown> {
-    const rows = await this.prisma.$queryRawUnsafe(
-      `INSERT INTO problems (
-         id, title, description, category, status,
-         latitude, longitude, "institutionId", "createdBy",
-         "createdAt", "updatedAt", score, location
-       ) VALUES (
-         gen_random_uuid(), $1, $2, $3, 'open',
-         $4, $5, $6, $7,
-         NOW(), NOW(), 0,
-         ST_SetSRID(ST_MakePoint($5, $4), 4326)::geography
-       )
-       RETURNING id, title, description, category, status, latitude, longitude,
-                 "institutionId", "createdBy", "createdAt", "updatedAt", score`,
-      input.title,
-      input.description,
-      input.category,
-      input.latitude,
-      input.longitude,
-      input.institutionId ?? null,
-      input.createdBy,
-    );
-    return (rows as unknown[])[0];
+    const rows = await this.prisma.$queryRaw<unknown[]>(Prisma.sql`
+      INSERT INTO problems (
+        id, title, description, category, status,
+        latitude, longitude, "institutionId", "createdBy",
+        "createdAt", "updatedAt", score, location
+      ) VALUES (
+        gen_random_uuid(),
+        ${input.title},
+        ${input.description},
+        ${input.category},
+        'open',
+        ${input.latitude},
+        ${input.longitude},
+        ${input.institutionId ?? null},
+        ${input.createdBy},
+        NOW(),
+        NOW(),
+        0,
+        ST_SetSRID(ST_MakePoint(${input.longitude}, ${input.latitude}), 4326)::geography
+      )
+      RETURNING id, title, description, category, status, latitude, longitude,
+                "institutionId", "createdBy", "createdAt", "updatedAt", score
+    `);
+    return rows[0];
   }
 }
