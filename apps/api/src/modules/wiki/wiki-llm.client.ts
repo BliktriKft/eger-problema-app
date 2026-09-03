@@ -14,7 +14,7 @@ export interface WikiLlmResult {
 const PROMPT_VERSION = "v1";
 const MAX_BODY_CHARS = Number(process.env.WIKI_MAX_BODY_CHARS ?? 1500);
 const MAX_TITLE_CHARS = 200;
-const MINIMAX_BASE_URL = "https://api.minimax.io/anthropic";
+const MINIMAX_BASE_URL = "https://api.minimax.io";
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const MINIMAX_MODEL = process.env.MINIMAX_MODEL ?? "MiniMax-M3";
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL ?? "minimax/minimax-m3";
