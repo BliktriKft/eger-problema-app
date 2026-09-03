@@ -1,81 +1,91 @@
-# Multi-stage Dockerfile for the Eger Város Probléma Térkép NestJS API.
-# Designed for Railway: the Dockerfile lives at the monorepo root, and
-# the Railway service's "Root Directory" is left empty so the build
-# context is the whole monorepo.
+# Eger Város Probléma Térkép — NestJS API
+# Single-stage Dockerfile. Railway will build this and run
+#   node apps/api/dist/main.js
+# from the monorepo root, which means:
+#   /repo/apps/api/dist/main.js        ← entrypoint (we resolve via WORKDIR)
+#   /repo/apps/api/node_modules/      ← dependencies (copied from builder step)
+#   /repo/packages/shared/            ← workspace package, inlined
 #
-# Strategy:
-#   Stage 1 (builder): install everything with pnpm, build the shared
-#                       package, build the api (creates apps/api/dist/).
-#   Stage 2 (runner):  copy apps/api/package.json to /app/package.json
-#                       (with packages/shared as a file: dep), and
-#                       also copy the built shared/dist as the resolved
-#                       file source, then 'npm install --omit=dev' to
-#                       produce a flat /app/node_modules. Finally
-#                       copy the compiled api dist/ on top.
-#
-# Why this is different from earlier attempts:
-#   - pnpm install in the runner stage (even with --shamefully-hoist)
-#     would still try to resolve workspaces via pnpm-workspace.yaml,
-#     and fail because apps/api/src/ is not present in the runner fs
-#     (we only copy package.json, not the source).
-#   - npm install is a flat, single-package resolver: it reads
-#     package.json's "dependencies", and for each "file:..." entry it
-#     copies / links that directory into node_modules. This works
-#     perfectly for our needs because we already built the shared
-#     package to /repo/packages/shared/dist on the builder fs.
-#   - We also copy the builder-installed @nestjs/* packages from
-#     /repo/node_modules into /app/node_modules directly, so the
-#     runtime doesn't have to run npm install at all if we don't
-#     want to.
+# Railway now requires the Dockerfile to be in the repo root and
+# the service's "Root Directory" left empty; the previous
+# `pnpm deploy` / `/deploy` indirection was the source of every
+# path-resolution error in earlier attempts. This Dockerfile
+# avoids that indirection entirely: it produces a runtime image
+# that already contains the compiled output + a flat, hoisted
+# node_modules, copied directly from the monorepo build.
 
-# Bumped 2026-09-03 to invalidate Railway's stale build cache.
-ARG CACHE_BUST=2026-09-03-r1
+# Bumped to force a fresh build (Railway caches layers).
+ARG CACHE_BUST=2026-09-03-r2
 
-# ---- Stage 1: deps + builds ----
-FROM node:20-bookworm-slim AS builder
+# ---- Builder stage: install everything (devDeps too) and build ----
+FROM node:22-bookworm-slim AS builder
 ARG CACHE_BUST
 WORKDIR /repo
 
 RUN corepack enable
 
-# Copy manifests first for better Docker layer caching.
+# Copy the monorepo manifests first (best Docker layer caching).
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/shared/package.json packages/shared/
+COPY packages/shared/tsconfig.json packages/shared/
+COPY packages/shared/tsconfig.build.json packages/shared/
 COPY apps/api/package.json apps/api/
+COPY apps/api/tsconfig.json apps/api/
+COPY apps/api/tsconfig.build.json apps/api/
+COPY apps/api/nest-cli.json apps/api/
+COPY apps/api/.env.example apps/api/
 
 # Install everything (devDeps included) so we can build.
-RUN pnpm install --frozen-lockfile=false
+# --shamefully-hoist lays node_modules flat (no .pnpm symlink layer),
+# which is the version that survives being COPYed across stages.
+RUN pnpm install --frozen-lockfile=false --shamefully-hoist
 
 # Copy source and build.
 COPY packages/shared/ packages/shared/
 COPY apps/api/ apps/api/
 RUN pnpm --filter @eger/shared build
+RUN pnpm --filter @eger/api prisma:generate
 RUN pnpm --filter @eger/api build
 
-# ---- Stage 2: production-only runtime ----
-FROM node:20-bookworm-slim AS runner
+# ---- Runtime stage: ship the compiled output + flat node_modules ----
+FROM node:22-bookworm-slim AS runner
 ARG CACHE_BUST
 ENV NODE_ENV=production
 ENV PORT=8000
 
-WORKDIR /app
+# Prisma 6.x ships with OpenSSL 3 binaries, which is what Debian
+# bookworm provides natively. No additional system packages needed.
 
-# Bring in the full node_modules from the builder. The builder already
-# installed every prod dep, and copying the directory preserves the
-# real files (no .pnpm symlink layer because the builder ran with
-# --shamefully-hoist). This is the simplest possible "no install at
-# runtime" path.
+WORKDIR /repo
+
+# Copy everything we need from the builder.
+# node_modules is already flat (--shamefully-hoist).
 COPY --from=builder /repo/node_modules ./node_modules
+COPY --from=builder /repo/apps/api/dist ./apps/api/dist
+COPY --from=builder /repo/packages/shared/dist ./packages/shared/dist
+COPY --from=builder /repo/apps/api/package.json ./apps/api/package.json
 
-# Bring in the compiled shared package (its dist + node_modules).
-COPY --from=builder /repo/packages/shared ./packages/shared
-
-# Bring in the compiled api output.
-COPY --from=builder /repo/apps/api/dist ./dist
-
-# Bring in the api package.json (read by Nest at runtime to find
-# scripts, but not strictly required for the dist).
-COPY --from=builder /repo/apps/api/package.json ./package.json
+# The pnpm symlink that the builder created is
+#   /repo/node_modules/@eger/shared -> ../../packages/shared
+# which inside this stage resolves to /packages/shared (one level
+# above /repo, which does not exist). The COPY above populated
+# /repo/packages/shared/dist/ but the symlink target is the parent,
+# not the dist. So Node's module resolver walks:
+#   /repo/apps/api/dist/...
+#   -> /repo/node_modules/@eger/shared  (symlink)
+#   -> /packages/shared                  (broken: outside /repo)
+#
+# Fix: delete the dangling symlink and replace it with a real
+# directory containing the copied dist, so '@eger/shared' resolves
+# to /repo/node_modules/@eger/shared/dist/index.js (matching the
+# packages/shared/package.json "main": "./dist/index.js").
+RUN rm -f /repo/node_modules/@eger/shared \
+ && mkdir -p /repo/node_modules/@eger/shared \
+ && cp -r /repo/packages/shared/dist/* /repo/node_modules/@eger/shared/
 
 EXPOSE 8000
-CMD ["node", "dist/main.js"]
+
+# Start the compiled api. WORKDIR is /repo (the monorepo root), so
+# `node apps/api/dist/main.js` resolves to /repo/apps/api/dist/main.js,
+# which is exactly the file the builder produced.
+CMD ["node", "apps/api/dist/main.js"]
