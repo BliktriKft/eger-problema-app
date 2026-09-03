@@ -15,7 +15,7 @@
 # node_modules, copied directly from the monorepo build.
 
 # Bumped to force a fresh build (Railway caches layers).
-ARG CACHE_BUST=2026-09-03-r2
+ARG CACHE_BUST=2026-09-03-r3
 
 # ---- Builder stage: install everything (devDeps too) and build ----
 FROM node:22-bookworm-slim AS builder
