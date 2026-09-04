@@ -29,6 +29,7 @@ android/app/build/
 coverage/
 
 # Environment
+*.env
 .env
 .env.local
 .env.*.local
