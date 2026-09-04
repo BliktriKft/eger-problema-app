@@ -2,16 +2,25 @@ import { createParamDecorator, ExecutionContext, UnauthorizedException } from '@
 import type { Request } from 'express';
 
 /**
- * Shape of the Supabase JWT payload we care about. We intentionally
- * type the surface minimally — controllers should not assume more
- * than `id` + `email` + `role`.
+ * Shape of the authenticated user we care about. We intentionally type
+ * the surface minimally — controllers should not assume more than
+ * `id` + `email` + `appRole` (their app-level role, set in
+ * public.users.role by an admin).
+ *
+ * `appRole` is one of: 'user' (default), 'moderator', 'admin'.
+ * It's read from the `public.users.role` column by AuthService on
+ * every authenticated request. Never trust the JWT claim for this —
+ * the JWT only carries Supabase's auth role ('authenticated' /
+ * 'anon' / 'service_role'), not our app's permission tier.
  */
 export interface AuthenticatedUser {
   /** Supabase auth.users.id, a UUID. */
   id: string;
   email: string;
-  /** `authenticated` | `anon` | `service_role` (from `auth.jwt() ->> 'role'`). */
-  role: string;
+  /** Supabase auth JWT role: 'authenticated' | 'anon' | 'service_role'. */
+  authRole: string;
+  /** App-level role: 'user' | 'moderator' | 'admin'. */
+  appRole: 'user' | 'moderator' | 'admin';
 }
 
 /**

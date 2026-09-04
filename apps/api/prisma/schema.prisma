@@ -70,6 +70,13 @@ model User {
   email     String   @unique @db.VarChar(320)
   name      String?  @db.VarChar(120)
   avatarUrl String?  @map("avatar_url") @db.VarChar(500)
+  /// Role gating: 'user' (default), 'admin' (institutions CRUD +
+  /// scraper sync + wiki regenerate), 'moderator' (problems delete +
+  /// status change). Read by NestJS JwtAuthGuard via
+  /// AuthService.verifyToken, written by the Supabase dashboard SQL
+  /// editor (no public endpoint to elevate). Match the CHECK
+  /// constraint in 0001_init/migration.sql.
+  role      String   @default("user") @db.VarChar(20)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   problems Problem[]
